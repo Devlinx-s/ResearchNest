@@ -1,0 +1,132 @@
+Module 1: Student Upload Portal
+A. User Stories
+
+    As a new student, I want to register an account so I can upload research papers.
+
+    As a logged‑in student, I want to upload a PDF and enter its metadata so that my paper is discoverable.
+
+    As a user, I want to see clear feedback if my upload or metadata entry fails.
+
+    As an admin, I want to receive alerts if auto‑extraction of metadata fails, so I can correct manually.
+
+B. Page & Form Layout
+Section	Content & Controls
+Header/Nav	Logo, “Home,” “Upload Paper,” “My Papers,” “Logout”
+Breadcrumb	Home › Upload Paper
+Upload Card	- File Picker: “Choose PDF” button + drag‑and‑drop area
+- Metadata Form: fields detailed below
+Metadata Fields	- Title (text, max 255 chars)
+- Author(s) (text, tag input for multiple)
+- Department (dropdown)
+- Year (dropdown or number input, range 2000–2025)
+- Keywords (tag input, up to 10)
+Auto‑Extract Panel	Notifies “Metadata auto‑extracted” vs. “Manual entry required.”
+Submit Controls	“Upload” (primary), “Reset” (secondary)
+Help Tooltip	“Supported file types: .pdf; max size: 20 MB.”
+C. Client‑Side Validation
+
+    File Constraints
+
+        Reject non‑PDF immediately.
+
+        Warn on files > 20 MB; require confirmation to proceed.
+
+    Metadata Presence
+
+        Require at least Title + Department + Year (others can be auto‑filled).
+
+        Real‑time character counters (e.g., “Title: 34/255”).
+
+    Interactive Feedback
+
+        Highlight invalid fields in red with inline error messages.
+
+        Show a spinner or progress bar during upload.
+
+D. Server‑Side Workflow
+
+    Receive Upload
+
+        Endpoint receives multipart/form‑data: file + metadata JSON.
+
+    Validate Again
+
+        Confirm MIME type is “application/pdf.”
+
+        Check file size ≤ 20 MB.
+
+        Sanitize metadata inputs (escape HTML, strip scripts).
+
+    Virus Scan Hook
+
+        Call ClamAV daemon; if flagged, reject upload and notify user/admin.
+
+    Save File
+
+        Generate a secure, UUID‑based filename.
+
+        Store in MEDIA_ROOT/research_papers/<year>/<department>/.
+
+    Metadata Auto‑Extraction
+
+        Try: Read PDF metadata.
+
+        Fallback: If metadata missing, parse first page text for Title/Authors.
+
+        Keywords: Run RAKE on abstract section if present.
+
+    Merge & Confirm
+
+        Combine user‑entered fields with extracted ones (extracted wins for blanks).
+
+        Flag any ambiguous extraction for admin review.
+
+    Database Record
+
+        Create ResearchPaper record with file path and all metadata fields.
+
+        Set status=pending if admin approval workflow is enabled.
+
+E. Post‑Upload User Experience
+
+    Success Page
+
+        “Your paper has been uploaded successfully!”
+
+        Show summary card of extracted metadata with “Edit” links for each field.
+
+    Error Paths
+
+        Validation Error: Redisplay form with preserved inputs + inline errors.
+
+        Extraction Failure: “We couldn’t extract some metadata—please fill in manually or contact admin.”
+
+        Virus Detection: “Your file looks suspicious and was rejected. Contact support.”
+
+F. Admin Alerting & Manual Fix
+
+    Dashboard Notification
+
+        Count of “Papers needing metadata review.”
+
+    Email/Push
+
+        Send admin an email listing new failures.
+
+    Admin UI
+
+        Inline edit of metadata on paper’s detail page.
+
+        “Approve” button to mark record as status=approved.
+
+G. Technical & Security Considerations
+
+    CSRF Protection: Ensure all form submissions include CSRF tokens.
+
+    Rate Limiting: Prevent abuse by throttling upload endpoint (e.g., 5 uploads/hour).
+
+    Input Sanitization: Clean all text fields to avoid XSS.
+
+    Logging: Log each upload attempt with user ID, timestamp, IP address, and outcome.
+
+    Backup Strategy: Cron‑driven Bash script to sync MEDIA_ROOT to offsite storage daily.
