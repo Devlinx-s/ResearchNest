@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Users - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h2><i data-feather="users" class="me-2"></i>Manage Users</h2>
+        </div>
+        <div class="col-md-6 text-md-end">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+                <i data-feather="arrow-left" class="me-1"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="card">
+        <div class="card-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <h5 class="card-title mb-0">System Users</h5>
+                <small class="text-muted">{{ users.total }} total users</small>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            {% if users.items %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>User</th>
+                                <th>Email</th>
+                                <th>Department</th>
+                                <th>Papers</th>
+                                <th>Downloads</th>
+                                <th>Role</th>
+                                <th>Joined</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users.items %}
+                                <tr>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if user.profile_image_url %}
+                                                <img src="{{ user.profile_image_url }}" alt="Profile" class="rounded-circle me-2" width="32" height="32" style="object-fit: cover;">
+                                            {% else %}
+                                                <div class="bg-secondary rounded-circle me-2 d-flex align-items-center justify-content-center" style="width: 32px; height: 32px;">
+                                                    <i data-feather="user" style="width: 16px; height: 16px;"></i>
+                                                </div>
+                                            {% endif %}
+                                            <div>
+                                                <strong>
+                                                    {% if user.first_name %}
+                                                        {{ user.first_name }} {{ user.last_name or '' }}
+                                                    {% else %}
+                                                        {{ user.email.split('@')[0] }}
+                                                    {% endif %}
+                                                </strong>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>{{ user.email or 'No email' }}</td>
+                                    <td>
+                                        {% if user.department %}
+                                            <span class="badge bg-secondary">{{ user.department }}</span>
+                                            {% if user.year %}
+                                                <br><small class="text-muted">Year {{ user.year }}</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">Not set</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ user.papers|length }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-success">{{ user.downloads|length }}</span>
+                                    </td>
+                                    <td>
+                                        {% if user.is_admin %}
+                                            <span class="badge bg-danger">Admin</span>
+                                        {% else %}
+                                            <span class="badge bg-info">Student</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small>{{ user.created_at.strftime('%m/%d/%Y') }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                Actions
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                {% if user.id != current_user.id %}
+                                                    <li>
+                                                        <a class="dropdown-item" href="{{ url_for('toggle_user_admin', user_id=user.id) }}">
+                                                            {% if user.is_admin %}
+                                                                <i data-feather="user-minus" class="me-1"></i>Remove Admin
+                                                            {% else %}
+                                                                <i data-feather="user-plus" class="me-1"></i>Make Admin
+                                                            {% endif %}
+                                                        </a>
+                                                    </li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                {% endif %}
+                                                <li>
+                                                    <a class="dropdown-item" href="{{ url_for('search', user_id=user.id) }}">
+                                                        <i data-feather="file-text" class="me-1"></i>View Papers
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-4">
+                    <i data-feather="users" class="display-4 text-muted mb-3"></i>
+                    <h5>No users found</h5>
+                    <p class="text-muted">No users are registered in the system yet.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    {% if users.pages > 1 %}
+        <nav aria-label="Users pagination" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if users.has_prev %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('admin_users', page=users.prev_num) }}">
+                            <i data-feather="chevron-left"></i>
+                        </a>
+                    </li>
+                {% endif %}
+                
+                {% for page_num in users.iter_pages() %}
+                    {% if page_num %}
+                        {% if page_num != users.page %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('admin_users', page=page_num) }}">{{ page_num }}</a>
+                            </li>
+                        {% else %}
+                            <li class="page-item active">
+                                <span class="page-link">{{ page_num }}</span>
+                            </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled">
+                            <span class="page-link">...</span>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+                
+                {% if users.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('admin_users', page=users.next_num) }}">
+                            <i data-feather="chevron-right"></i>
+                        </a>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+
+    <!-- User Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i data-feather="users" class="display-4 text-primary mb-2"></i>
+                    <h4>{{ users.total }}</h4>
+                    <p class="text-muted">Total Users</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i data-feather="shield" class="display-4 text-danger mb-2"></i>
+                    <h4>{{ users.items|selectattr('is_admin')|list|length }}</h4>
+                    <p class="text-muted">Administrators</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center">
+                    <i data-feather="graduation-cap" class="display-4 text-info mb-2"></i>
+                    <h4>{{ users.items|rejectattr('is_admin')|list|length }}</h4>
+                    <p class="text-muted">Students</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    feather.replace();
+</script>
+{% endblock %}

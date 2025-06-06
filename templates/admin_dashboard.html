@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i data-feather="bar-chart-2" class="me-2"></i>Admin Dashboard</h2>
+            <p class="text-muted">Analytics and system overview</p>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="card-title">{{ total_papers }}</h3>
+                            <p class="card-text">Total Papers</p>
+                        </div>
+                        <i data-feather="file-text" class="display-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="card-title">{{ total_downloads }}</h3>
+                            <p class="card-text">Total Downloads</p>
+                        </div>
+                        <i data-feather="download" class="display-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="card-title">{{ total_users }}</h3>
+                            <p class="card-text">Total Users</p>
+                        </div>
+                        <i data-feather="users" class="display-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="card-title">{{ pending_papers }}</h3>
+                            <p class="card-text">Pending Approval</p>
+                        </div>
+                        <i data-feather="clock" class="display-4"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Papers by Department</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="departmentChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Uploads vs Downloads (Last 12 Months)</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="trendsChart" width="400" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Top Keywords</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="keywordsChart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="clock" class="me-2"></i>Recent Papers
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_papers %}
+                        {% for paper in recent_papers %}
+                            <div class="d-flex justify-content-between align-items-start border-bottom pb-2 mb-2">
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('paper_detail', id=paper.id) }}" class="text-decoration-none">
+                                            {{ paper.title[:50] + '...' if paper.title|length > 50 else paper.title }}
+                                        </a>
+                                    </h6>
+                                    <small class="text-muted">
+                                        by {{ paper.authors[:30] + '...' if paper.authors|length > 30 else paper.authors }}
+                                        <br>
+                                        {{ paper.uploaded_at.strftime('%B %d, %Y') }}
+                                    </small>
+                                </div>
+                                {% if paper.status == 'pending' %}
+                                    <span class="badge bg-warning">Pending</span>
+                                {% elif paper.status == 'approved' %}
+                                    <span class="badge bg-success">Approved</span>
+                                {% elif paper.status == 'rejected' %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                        <div class="text-center mt-3">
+                            <a href="{{ url_for('admin_papers') }}" class="btn btn-outline-primary btn-sm">
+                                View All Papers
+                            </a>
+                        </div>
+                    {% else %}
+                        <p class="text-muted">No papers uploaded yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">
+                        <i data-feather="download" class="me-2"></i>Recent Downloads
+                    </h5>
+                </div>
+                <div class="card-body">
+                    {% if recent_downloads %}
+                        {% for log, title in recent_downloads %}
+                            <div class="border-bottom pb-2 mb-2">
+                                <h6 class="mb-1">{{ title[:50] + '...' if title|length > 50 else title }}</h6>
+                                <small class="text-muted">
+                                    Downloaded by {{ log.user.first_name or log.user.email.split('@')[0] }}
+                                    <br>
+                                    {{ log.downloaded_at.strftime('%B %d, %Y at %I:%M %p') }}
+                                </small>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No downloads yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2">
+                        <a href="{{ url_for('admin_papers') }}" class="btn btn-primary">
+                            <i data-feather="file-text" class="me-1"></i>Manage Papers
+                        </a>
+                        <a href="{{ url_for('admin_users') }}" class="btn btn-outline-primary">
+                            <i data-feather="users" class="me-1"></i>Manage Users
+                        </a>
+                        <a href="{{ url_for('upload_paper') }}" class="btn btn-outline-secondary">
+                            <i data-feather="upload" class="me-1"></i>Upload Paper
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+    feather.replace();
+</script>
+{% endblock %}

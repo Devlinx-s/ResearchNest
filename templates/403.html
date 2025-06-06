@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+
+{% block title %}Access Forbidden - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 text-center">
+            <!-- Error Icon -->
+            <div class="mb-4">
+                <svg width="120" height="120" viewBox="0 0 120 120" class="text-danger">
+                    <circle cx="60" cy="60" r="50" fill="none" stroke="currentColor" stroke-width="4"/>
+                    <path d="m40 40 40 40m0-40-40 40" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+                </svg>
+            </div>
+
+            <!-- Error Message -->
+            <h1 class="display-4 fw-bold text-danger mb-3">403</h1>
+            <h2 class="h4 mb-3">Access Forbidden</h2>
+            <p class="lead text-muted mb-4">
+                Sorry, you don't have permission to access this resource. 
+                This could be because you need administrator privileges or the content is restricted.
+            </p>
+
+            <!-- Action Buttons -->
+            <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center mb-5">
+                <a href="{{ url_for('index') }}" class="btn btn-primary">
+                    <i data-feather="home" class="me-2"></i>Go Home
+                </a>
+                {% if not current_user.is_authenticated %}
+                    <a href="{{ url_for('replit_auth.login') }}" class="btn btn-outline-secondary">
+                        <i data-feather="log-in" class="me-2"></i>Login
+                    </a>
+                {% else %}
+                    <button onclick="history.back()" class="btn btn-outline-secondary">
+                        <i data-feather="arrow-left" class="me-2"></i>Go Back
+                    </button>
+                {% endif %}
+            </div>
+
+            <!-- Additional Information -->
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="card-title">
+                        <i data-feather="info" class="me-2"></i>Why am I seeing this?
+                    </h6>
+                    <div class="text-start">
+                        <ul class="list-unstyled">
+                            <li class="mb-2">
+                                <i data-feather="shield" class="text-warning me-2"></i>
+                                <strong>Admin Access Required:</strong> You may be trying to access administrative features that require special permissions.
+                            </li>
+                            <li class="mb-2">
+                                <i data-feather="lock" class="text-info me-2"></i>
+                                <strong>Content Restrictions:</strong> The content you're trying to view may be restricted or not yet approved.
+                            </li>
+                            <li class="mb-2">
+                                <i data-feather="user-x" class="text-secondary me-2"></i>
+                                <strong>Authentication Required:</strong> You may need to log in to access this resource.
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contact Information -->
+            {% if current_user.is_authenticated %}
+                <div class="mt-4">
+                    <p class="text-muted">
+                        If you believe this is an error, please contact a system administrator.
+                    </p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize feather icons
+    feather.replace();
+</script>
+{% endblock %}

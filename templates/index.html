@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    {% if current_user.is_authenticated %}
+        <!-- Dashboard for logged-in users -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h1 class="display-6 mb-3">Welcome back, {{ current_user.first_name or current_user.email.split('@')[0] }}!</h1>
+            </div>
+        </div>
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4 mb-3">
+                <div class="card bg-primary">
+                    <div class="card-body text-center">
+                        <i data-feather="file-text" class="display-4 mb-2"></i>
+                        <h3 class="card-title">{{ total_papers }}</h3>
+                        <p class="card-text">Total Papers</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card bg-success">
+                    <div class="card-body text-center">
+                        <i data-feather="download" class="display-4 mb-2"></i>
+                        <h3 class="card-title">{{ total_downloads }}</h3>
+                        <p class="card-text">Total Downloads</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4 mb-3">
+                <div class="card bg-info">
+                    <div class="card-body text-center">
+                        <i data-feather="search" class="display-4 mb-2"></i>
+                        <h3 class="card-title">Advanced Search</h3>
+                        <p class="card-text">Find Research</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Quick Actions</h5>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="{{ url_for('upload_paper') }}" class="btn btn-primary">
+                                <i data-feather="upload" class="me-1"></i>Upload Paper
+                            </a>
+                            <a href="{{ url_for('search') }}" class="btn btn-outline-secondary">
+                                <i data-feather="search" class="me-1"></i>Search Papers
+                            </a>
+                            <a href="{{ url_for('my_papers') }}" class="btn btn-outline-secondary">
+                                <i data-feather="file-text" class="me-1"></i>My Papers
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Papers and Popular Papers -->
+        <div class="row">
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i data-feather="clock" class="me-2"></i>Recent Papers
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if recent_papers %}
+                            {% for paper in recent_papers %}
+                                <div class="border-bottom pb-2 mb-2">
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('paper_detail', id=paper.id) }}" class="text-decoration-none">
+                                            {{ paper.title[:80] + '...' if paper.title|length > 80 else paper.title }}
+                                        </a>
+                                    </h6>
+                                    <small class="text-muted">
+                                        by {{ paper.authors[:50] + '...' if paper.authors|length > 50 else paper.authors }}
+                                        <br>
+                                        {{ paper.dept.name }} • {{ paper.publication_year }}
+                                    </small>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted">No papers uploaded yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-6 mb-4">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0">
+                            <i data-feather="trending-up" class="me-2"></i>Popular Papers
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        {% if popular_papers %}
+                            {% for paper in popular_papers %}
+                                <div class="border-bottom pb-2 mb-2">
+                                    <h6 class="mb-1">
+                                        <a href="{{ url_for('paper_detail', id=paper.id) }}" class="text-decoration-none">
+                                            {{ paper.title[:80] + '...' if paper.title|length > 80 else paper.title }}
+                                        </a>
+                                    </h6>
+                                    <small class="text-muted">
+                                        by {{ paper.authors[:50] + '...' if paper.authors|length > 50 else paper.authors }}
+                                        <br>
+                                        {{ paper.download_count }} downloads • {{ paper.dept.name }}
+                                    </small>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted">No downloads yet.</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    {% else %}
+        <!-- Landing page for anonymous users -->
+        <div class="row min-vh-100 align-items-center">
+            <div class="col-lg-6 mb-5">
+                <h1 class="display-4 fw-bold mb-4">Welcome to ResearchNest</h1>
+                <p class="lead mb-4">
+                    The premier academic research archive and discovery platform. 
+                    Upload, search, and discover groundbreaking research papers 
+                    from students and researchers worldwide.
+                </p>
+                
+                <div class="d-flex flex-column flex-sm-row gap-3 mb-4">
+                    <a href="{{ url_for('replit_auth.login') }}" class="btn btn-primary btn-lg">
+                        <i data-feather="log-in" class="me-2"></i>Get Started
+                    </a>
+                    <a href="{{ url_for('search') }}" class="btn btn-outline-secondary btn-lg">
+                        <i data-feather="search" class="me-2"></i>Browse Papers
+                    </a>
+                </div>
+
+                <!-- Features -->
+                <div class="row">
+                    <div class="col-sm-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i data-feather="upload" class="me-3 mt-1 text-primary"></i>
+                            <div>
+                                <h6 class="mb-1">Easy Upload</h6>
+                                <small class="text-muted">Upload PDF research papers with automatic metadata extraction</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i data-feather="search" class="me-3 mt-1 text-primary"></i>
+                            <div>
+                                <h6 class="mb-1">Advanced Search</h6>
+                                <small class="text-muted">Filter by department, year, keywords, and more</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i data-feather="bar-chart-2" class="me-3 mt-1 text-primary"></i>
+                            <div>
+                                <h6 class="mb-1">Analytics</h6>
+                                <small class="text-muted">Track downloads and discover trending research topics</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6 mb-3">
+                        <div class="d-flex align-items-start">
+                            <i data-feather="users" class="me-3 mt-1 text-primary"></i>
+                            <div>
+                                <h6 class="mb-1">Community</h6>
+                                <small class="text-muted">Connect with researchers and discover collaborative work</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-6 text-center">
+                <div class="position-relative">
+                    <!-- Academic themed SVG illustration -->
+                    <svg width="400" height="300" viewBox="0 0 400 300" class="img-fluid">
+                        <!-- Books stack -->
+                        <rect x="80" y="200" width="240" height="20" rx="2" fill="var(--bs-primary)" opacity="0.8"/>
+                        <rect x="90" y="180" width="220" height="20" rx="2" fill="var(--bs-success)" opacity="0.8"/>
+                        <rect x="100" y="160" width="200" height="20" rx="2" fill="var(--bs-warning)" opacity="0.8"/>
+                        
+                        <!-- Computer/Document -->
+                        <rect x="150" y="100" width="100" height="60" rx="4" fill="var(--bs-dark)" stroke="var(--bs-light)" stroke-width="2"/>
+                        <rect x="160" y="110" width="80" height="40" rx="2" fill="var(--bs-light)"/>
+                        
+                        <!-- Lines representing text -->
+                        <line x1="170" y1="120" x2="230" y2="120" stroke="var(--bs-dark)" stroke-width="2"/>
+                        <line x1="170" y1="130" x2="220" y2="130" stroke="var(--bs-dark)" stroke-width="1"/>
+                        <line x1="170" y1="140" x2="235" y2="140" stroke="var(--bs-dark)" stroke-width="1"/>
+                        
+                        <!-- Upload arrow -->
+                        <path d="M200 80 L190 90 L195 90 L195 100 L205 100 L205 90 L210 90 Z" fill="var(--bs-primary)"/>
+                        
+                        <!-- Floating documents -->
+                        <rect x="50" y="50" width="30" height="40" rx="2" fill="var(--bs-info)" opacity="0.6"/>
+                        <rect x="320" y="70" width="30" height="40" rx="2" fill="var(--bs-warning)" opacity="0.6"/>
+                        <rect x="300" y="120" width="30" height="40" rx="2" fill="var(--bs-success)" opacity="0.6"/>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize feather icons after any dynamic content loads
+    document.addEventListener('DOMContentLoaded', function() {
+        feather.replace();
+    });
+</script>
+{% endblock %}

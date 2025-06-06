@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Paper - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-0">
+                        <i data-feather="upload" class="me-2"></i>Upload Research Paper
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- File Upload -->
+                        <div class="mb-4">
+                            <label for="{{ form.file.id }}" class="form-label">
+                                <i data-feather="file" class="me-1"></i>PDF File *
+                            </label>
+                            <div class="upload-area border rounded p-4 text-center" id="uploadArea">
+                                {{ form.file(class="form-control", style="display: none;", accept=".pdf") }}
+                                <div id="uploadPrompt">
+                                    <i data-feather="upload-cloud" class="display-4 text-muted mb-2"></i>
+                                    <p class="mb-2">Drag and drop your PDF file here, or click to browse</p>
+                                    <small class="text-muted">Maximum file size: 20MB • Only PDF files allowed</small>
+                                </div>
+                                <div id="fileInfo" style="display: none;">
+                                    <i data-feather="file-text" class="text-success me-2"></i>
+                                    <span id="fileName"></span>
+                                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="removeFile">Remove</button>
+                                </div>
+                            </div>
+                            {% if form.file.errors %}
+                                <div class="text-danger mt-1">
+                                    {% for error in form.file.errors %}
+                                        <small>{{ error }}</small>
+                                    {% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Progress Bar -->
+                        <div class="mb-3" id="progressContainer" style="display: none;">
+                            <div class="progress">
+                                <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <small class="text-muted mt-1">Uploading and extracting metadata...</small>
+                        </div>
+
+                        <!-- Metadata Fields -->
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.title.id }}" class="form-label">Title</label>
+                                {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="Will be auto-extracted if left blank") }}
+                                {% if form.title.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.title.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.authors.id }}" class="form-label">Authors</label>
+                                {{ form.authors(class="form-control" + (" is-invalid" if form.authors.errors else ""), placeholder="Will be auto-extracted if left blank") }}
+                                {% if form.authors.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.authors.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.department_id.id }}" class="form-label">Department *</label>
+                                {{ form.department_id(class="form-select" + (" is-invalid" if form.department_id.errors else "")) }}
+                                {% if form.department_id.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.department_id.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label for="{{ form.publication_year.id }}" class="form-label">Publication Year</label>
+                                {{ form.publication_year(class="form-control" + (" is-invalid" if form.publication_year.errors else ""), placeholder="Current year if left blank") }}
+                                {% if form.publication_year.errors %}
+                                    <div class="invalid-feedback">
+                                        {% for error in form.publication_year.errors %}{{ error }}{% endfor %}
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.keywords.id }}" class="form-label">Keywords</label>
+                            {{ form.keywords(class="form-control" + (" is-invalid" if form.keywords.errors else ""), placeholder="Comma-separated keywords (will be auto-extracted if left blank)") }}
+                            <div class="form-text">Separate multiple keywords with commas</div>
+                            {% if form.keywords.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.keywords.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="{{ form.abstract.id }}" class="form-label">Abstract</label>
+                            {{ form.abstract(class="form-control" + (" is-invalid" if form.abstract.errors else ""), rows="4", placeholder="Abstract of the research paper (will be auto-extracted if available)") }}
+                            {% if form.abstract.errors %}
+                                <div class="invalid-feedback">
+                                    {% for error in form.abstract.errors %}{{ error }}{% endfor %}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Auto-extraction Status -->
+                        <div class="alert alert-info" id="extractionStatus" style="display: none;">
+                            <i data-feather="info" class="me-2"></i>
+                            <span id="extractionMessage">Metadata will be automatically extracted when you upload the file.</span>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="d-flex justify-content-between">
+                            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                                <i data-feather="arrow-left" class="me-1"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary" id="submitBtn">
+                                <i data-feather="upload" class="me-1"></i>Upload Paper
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Help Section -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="help-circle" class="me-2"></i>Upload Guidelines
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>File Requirements:</h6>
+                            <ul class="list-unstyled">
+                                <li><i data-feather="check" class="text-success me-1"></i> PDF format only</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Maximum size: 20MB</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Text-searchable PDFs preferred</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Metadata Extraction:</h6>
+                            <ul class="list-unstyled">
+                                <li><i data-feather="check" class="text-success me-1"></i> Title from PDF properties or content</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Author from PDF metadata</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Keywords from abstract analysis</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/upload.js') }}"></script>
+<script>
+    feather.replace();
+</script>
+{% endblock %}

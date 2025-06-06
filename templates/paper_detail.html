@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+
+{% block title %}{{ paper.title }} - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('search') }}">Search</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Paper Details</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Main Paper Information -->
+        <div class="col-lg-8 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h4 class="card-title mb-1">{{ paper.title }}</h4>
+                            {% if paper.status == 'pending' %}
+                                <span class="badge bg-warning">Pending Approval</span>
+                            {% elif paper.status == 'approved' %}
+                                <span class="badge bg-success">Approved</span>
+                            {% elif paper.status == 'rejected' %}
+                                <span class="badge bg-danger">Rejected</span>
+                            {% endif %}
+                        </div>
+                        {% if current_user.is_authenticated and (current_user.is_admin or paper.uploader_id == current_user.id) %}
+                            <div class="dropdown">
+                                <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i data-feather="more-horizontal"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    {% if current_user.is_admin %}
+                                        {% if paper.status == 'pending' %}
+                                            <li><a class="dropdown-item" href="{{ url_for('approve_paper', id=paper.id) }}">
+                                                <i data-feather="check" class="me-1"></i>Approve
+                                            </a></li>
+                                            <li><a class="dropdown-item" href="{{ url_for('reject_paper', id=paper.id) }}">
+                                                <i data-feather="x" class="me-1"></i>Reject
+                                            </a></li>
+                                        {% endif %}
+                                    {% endif %}
+                                </ul>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Authors -->
+                    <div class="mb-3">
+                        <h6><i data-feather="user" class="me-2"></i>Authors</h6>
+                        <p class="mb-0">{{ paper.authors }}</p>
+                    </div>
+
+                    <!-- Abstract -->
+                    {% if paper.abstract %}
+                        <div class="mb-3">
+                            <h6><i data-feather="file-text" class="me-2"></i>Abstract</h6>
+                            <p class="text-muted">{{ paper.abstract }}</p>
+                        </div>
+                    {% endif %}
+
+                    <!-- Keywords -->
+                    {% if paper.keywords %}
+                        <div class="mb-3">
+                            <h6><i data-feather="tag" class="me-2"></i>Keywords</h6>
+                            <div>
+                                {% for keyword in paper.keywords.split(',') %}
+                                    <span class="badge bg-secondary me-1 mb-1">{{ keyword.strip() }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+
+                    <!-- Metadata -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i data-feather="building" class="me-2"></i>Department</h6>
+                            <p class="mb-2">{{ paper.dept.name }}</p>
+                            
+                            <h6><i data-feather="calendar" class="me-2"></i>Publication Year</h6>
+                            <p class="mb-2">{{ paper.publication_year }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i data-feather="upload" class="me-2"></i>Uploaded</h6>
+                            <p class="mb-2">{{ paper.uploaded_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
+                            
+                            <h6><i data-feather="user-check" class="me-2"></i>Uploaded by</h6>
+                            <p class="mb-2">
+                                {% if paper.uploader.first_name %}
+                                    {{ paper.uploader.first_name }} {{ paper.uploader.last_name or '' }}
+                                {% else %}
+                                    {{ paper.uploader.email.split('@')[0] }}
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Download Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0"><i data-feather="download" class="me-2"></i>Download</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>File size:</span>
+                        <span class="text-muted">{{ format_file_size(paper.file_size) }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Downloads:</span>
+                        <span class="badge bg-primary">{{ paper.download_count }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span>Format:</span>
+                        <span class="text-muted">PDF</span>
+                    </div>
+                    
+                    {% if current_user.is_authenticated %}
+                        {% if paper.status == 'approved' or paper.uploader_id == current_user.id or current_user.is_admin %}
+                            <a href="{{ url_for('download_paper', id=paper.id) }}" class="btn btn-primary w-100">
+                                <i data-feather="download" class="me-2"></i>Download PDF
+                            </a>
+                        {% else %}
+                            <button class="btn btn-secondary w-100" disabled>
+                                <i data-feather="clock" class="me-2"></i>Pending Approval
+                            </button>
+                        {% endif %}
+                    {% else %}
+                        <a href="{{ url_for('replit_auth.login') }}" class="btn btn-primary w-100">
+                            <i data-feather="log-in" class="me-2"></i>Login to Download
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Share Card -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0"><i data-feather="share" class="me-2"></i>Share</h6>
+                </div>
+                <div class="card-body">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="shareUrl" value="{{ request.url }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="copyUrl">
+                            <i data-feather="copy"></i>
+                        </button>
+                    </div>
+                    <small class="text-muted mt-1 d-block">Share this paper with others</small>
+                </div>
+            </div>
+
+            <!-- Related Papers -->
+            {% if related_papers %}
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="card-title mb-0"><i data-feather="bookmark" class="me-2"></i>Related Papers</h6>
+                    </div>
+                    <div class="card-body">
+                        {% for related in related_papers %}
+                            <div class="border-bottom pb-2 mb-2">
+                                <h6 class="mb-1">
+                                    <a href="{{ url_for('paper_detail', id=related.id) }}" class="text-decoration-none">
+                                        {{ related.title[:60] + '...' if related.title|length > 60 else related.title }}
+                                    </a>
+                                </h6>
+                                <small class="text-muted">
+                                    {{ related.authors[:40] + '...' if related.authors|length > 40 else related.authors }}
+                                    <br>
+                                    {{ related.download_count }} downloads
+                                </small>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Copy URL functionality
+    document.getElementById('copyUrl').addEventListener('click', function() {
+        const urlInput = document.getElementById('shareUrl');
+        urlInput.select();
+        urlInput.setSelectionRange(0, 99999); // For mobile devices
+        
+        try {
+            document.execCommand('copy');
+            
+            // Show success feedback
+            const button = this;
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<i data-feather="check"></i>';
+            feather.replace();
+            
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                feather.replace();
+            }, 2000);
+        } catch (err) {
+            console.error('Failed to copy URL: ', err);
+        }
+    });
+
+    // Initialize feather icons
+    feather.replace();
+</script>
+{% endblock %}
