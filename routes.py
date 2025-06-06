@@ -389,26 +389,4 @@ def api_top_keywords():
     }
     return jsonify(data)
 
-# Initialize departments if none exist
-@app.before_first_request
-def create_default_departments():
-    """Create default departments if none exist."""
-    if Department.query.count() == 0:
-        departments = [
-            'Computer Science',
-            'Mathematics',
-            'Physics',
-            'Chemistry',
-            'Biology',
-            'Engineering',
-            'Business Administration',
-            'Psychology',
-            'Education',
-            'Literature'
-        ]
-        
-        for dept_name in departments:
-            dept = Department(name=dept_name)
-            db.session.add(dept)
-        
-        db.session.commit()
+

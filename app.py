@@ -40,3 +40,26 @@ with app.app_context():
     import models  # noqa: F401
     db.create_all()
     logging.info("Database tables created")
+    
+    # Initialize default departments if none exist
+    from models import Department
+    if Department.query.count() == 0:
+        departments = [
+            'Computer Science',
+            'Mathematics',
+            'Physics',
+            'Chemistry',
+            'Biology',
+            'Engineering',
+            'Business Administration',
+            'Psychology',
+            'Education',
+            'Literature'
+        ]
+        
+        for dept_name in departments:
+            dept = Department(name=dept_name)
+            db.session.add(dept)
+        
+        db.session.commit()
+        logging.info("Default departments created")
