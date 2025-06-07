@@ -20,9 +20,8 @@ db = SQLAlchemy(model_class=Base)
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-# Configure database - use PostgreSQL from environment
-database_url = os.environ.get("DATABASE_URL")
-app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+# Configure database
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI", "sqlite:///researchnest.db")
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # File upload configuration
