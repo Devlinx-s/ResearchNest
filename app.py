@@ -3,6 +3,10 @@ import logging
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -16,14 +20,14 @@ db = SQLAlchemy(model_class=Base)
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-# Configure database - use SQLite by default
-database_url = os.environ.get("DATABASE_URL", "sqlite:///researchnest.db")
+# Configure database - use PostgreSQL from environment
+database_url = os.environ.get("DATABASE_URL")
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # File upload configuration
 app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB
-app.config['UPLOAD_FOLDER'] = 'uploads/papers'
+app.config['UPLOAD_FOLDER'] = 'uploads'
 
 # Initialize the app with the extension
 db.init_app(app)
@@ -33,7 +37,7 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 def initialize_database():
     """Initialize database with fresh schema and sample data."""
-    from models import Department, User
+    from models import Department, User, Subject, Unit, Topic
     
     # Create all tables
     db.create_all()
@@ -45,7 +49,7 @@ def initialize_database():
         return
     
     # Initialize default departments
-    departments = [
+    departments_data = [
         'Computer Science',
         'Mathematics', 
         'Physics',
@@ -58,9 +62,136 @@ def initialize_database():
         'Literature'
     ]
     
-    for dept_name in departments:
+    departments = {}
+    for dept_name in departments_data:
         dept = Department(name=dept_name)
         db.session.add(dept)
+        departments[dept_name] = dept
+    
+    db.session.flush()  # Get department IDs
+    
+    # Initialize sample subjects for Computer Science
+    cs_dept = departments['Computer Science']
+    subjects_data = [
+        {'name': 'Data Structures and Algorithms', 'code': 'CS201', 'dept': cs_dept},
+        {'name': 'Database Management Systems', 'code': 'CS301', 'dept': cs_dept},
+        {'name': 'Operating Systems', 'code': 'CS302', 'dept': cs_dept},
+        {'name': 'Computer Networks', 'code': 'CS401', 'dept': cs_dept},
+    ]
+    
+    # Initialize sample subjects for Mathematics
+    math_dept = departments['Mathematics']
+    subjects_data.extend([
+        {'name': 'Calculus I', 'code': 'MATH101', 'dept': math_dept},
+        {'name': 'Linear Algebra', 'code': 'MATH201', 'dept': math_dept},
+        {'name': 'Statistics', 'code': 'MATH301', 'dept': math_dept},
+    ])
+    
+    subjects = {}
+    for subj_data in subjects_data:
+        subject = Subject(
+            name=subj_data['name'],
+            code=subj_data['code'],
+            department_id=subj_data['dept'].id
+        )
+        db.session.add(subject)
+        subjects[subj_data['code']] = subject
+    
+    db.session.flush()  # Get subject IDs
+    
+    # Initialize sample units and topics for CS201 (Data Structures)
+    dsa_subject = subjects['CS201']
+    units_data = [
+        {
+            'name': 'Arrays and Linked Lists',
+            'description': 'Basic data structures for storing collections of data',
+            'topics': [
+                {'name': 'Array Operations', 'difficulty': 'easy'},
+                {'name': 'Singly Linked Lists', 'difficulty': 'medium'},
+                {'name': 'Doubly Linked Lists', 'difficulty': 'medium'},
+                {'name': 'Circular Linked Lists', 'difficulty': 'hard'}
+            ]
+        },
+        {
+            'name': 'Stacks and Queues',
+            'description': 'Linear data structures with specific access patterns',
+            'topics': [
+                {'name': 'Stack Implementation', 'difficulty': 'easy'},
+                {'name': 'Queue Implementation', 'difficulty': 'easy'},
+                {'name': 'Priority Queues', 'difficulty': 'medium'},
+                {'name': 'Deque Operations', 'difficulty': 'medium'}
+            ]
+        },
+        {
+            'name': 'Trees and Graphs',
+            'description': 'Hierarchical and network data structures',
+            'topics': [
+                {'name': 'Binary Trees', 'difficulty': 'medium'},
+                {'name': 'Binary Search Trees', 'difficulty': 'medium'},
+                {'name': 'Graph Traversal', 'difficulty': 'hard'},
+                {'name': 'Shortest Path Algorithms', 'difficulty': 'hard'}
+            ]
+        }
+    ]
+    
+    for idx, unit_data in enumerate(units_data):
+        unit = Unit(
+            name=unit_data['name'],
+            description=unit_data['description'],
+            subject_id=dsa_subject.id,
+            order_index=idx + 1
+        )
+        db.session.add(unit)
+        db.session.flush()  # Get unit ID
+        
+        for topic_data in unit_data['topics']:
+            topic = Topic(
+                name=topic_data['name'],
+                unit_id=unit.id,
+                difficulty_level=topic_data['difficulty']
+            )
+            db.session.add(topic)
+    
+    # Initialize sample units for DBMS (CS301)
+    dbms_subject = subjects['CS301']
+    dbms_units = [
+        {
+            'name': 'Relational Model',
+            'description': 'Foundation of relational databases',
+            'topics': [
+                {'name': 'Tables and Relations', 'difficulty': 'easy'},
+                {'name': 'Primary and Foreign Keys', 'difficulty': 'medium'},
+                {'name': 'Normalization', 'difficulty': 'hard'}
+            ]
+        },
+        {
+            'name': 'SQL Queries',
+            'description': 'Structured Query Language for database operations',
+            'topics': [
+                {'name': 'SELECT Statements', 'difficulty': 'easy'},
+                {'name': 'JOIN Operations', 'difficulty': 'medium'},
+                {'name': 'Subqueries', 'difficulty': 'hard'}
+            ]
+        }
+    ]
+    
+    for idx, unit_data in enumerate(dbms_units):
+        unit = Unit(
+            name=unit_data['name'],
+            description=unit_data['description'],
+            subject_id=dbms_subject.id,
+            order_index=idx + 1
+        )
+        db.session.add(unit)
+        db.session.flush()
+        
+        for topic_data in unit_data['topics']:
+            topic = Topic(
+                name=topic_data['name'],
+                unit_id=unit.id,
+                difficulty_level=topic_data['difficulty']
+            )
+            db.session.add(topic)
     
     # Create demo admin user
     demo_user = User(
@@ -76,9 +207,14 @@ def initialize_database():
         db.session.commit()
         logging.info("Database initialized successfully")
         logging.info("Demo admin: admin@researchnest.local / password: admin123")
+        logging.info("Sample subjects, units, and topics created")
     except Exception as e:
         db.session.rollback()
         logging.error(f"Database initialization failed: {e}")
+
+# Import routes after app initialization
+import routes  # noqa: E402
+import auth  # noqa: E402
 
 with app.app_context():
     initialize_database()

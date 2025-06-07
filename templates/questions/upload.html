@@ -1,0 +1,225 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Question Document - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-0">
+                        <i data-feather="upload" class="me-2"></i>Upload Question Document
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data" id="questionUploadForm">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- File Upload -->
+                        <div class="mb-4">
+                            <label for="{{ form.file.id }}" class="form-label">
+                                <i data-feather="file" class="me-1"></i>PDF File *
+                            </label>
+                            <div class="upload-area border rounded p-4 text-center" id="uploadArea">
+                                {{ form.file(class="form-control", style="display: none;", accept=".pdf") }}
+                                <div class="upload-placeholder">
+                                    <i data-feather="upload-cloud" class="display-4 text-muted mb-3"></i>
+                                    <p class="mb-2">Drag and drop your question document here, or <strong>click to browse</strong></p>
+                                    <small class="text-muted">Supports PDF files up to 20MB</small>
+                                </div>
+                                <div class="file-info d-none">
+                                    <i data-feather="file" class="me-2"></i>
+                                    <span class="filename"></span>
+                                    <small class="file-size text-muted ms-2"></small>
+                                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="clearFile">
+                                        <i data-feather="x"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            {% if form.file.errors %}
+                                <div class="invalid-feedback d-block">
+                                    {{ form.file.errors[0] }}
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Document Details -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.title.id }}" class="form-label">Document Title *</label>
+                                    {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="Enter document title") }}
+                                    {% if form.title.errors %}
+                                        <div class="invalid-feedback">{{ form.title.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.subject_id.id }}" class="form-label">Subject *</label>
+                                    {{ form.subject_id(class="form-select" + (" is-invalid" if form.subject_id.errors else "")) }}
+                                    {% if form.subject_id.errors %}
+                                        <div class="invalid-feedback">{{ form.subject_id.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.document_type.id }}" class="form-label">Document Type *</label>
+                                    {{ form.document_type(class="form-select" + (" is-invalid" if form.document_type.errors else "")) }}
+                                    {% if form.document_type.errors %}
+                                        <div class="invalid-feedback">{{ form.document_type.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.academic_year.id }}" class="form-label">Academic Year</label>
+                                    {{ form.academic_year(class="form-control", placeholder="e.g., 2023-2024") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.semester.id }}" class="form-label">Semester</label>
+                                    {{ form.semester(class="form-select") }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ url_for('question_documents') }}" class="btn btn-outline-secondary">
+                                <i data-feather="arrow-left" class="me-1"></i>Cancel
+                            </a>
+                            {{ form.submit(class="btn btn-primary px-4") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Upload Guidelines -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="help-circle" class="me-2"></i>Upload Guidelines
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>File Requirements:</h6>
+                            <ul class="list-unstyled">
+                                <li><i data-feather="check" class="text-success me-1"></i> PDF format only</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Maximum size: 20MB</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Clear, readable text</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Well-structured questions</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>What happens after upload:</h6>
+                            <ul class="list-unstyled">
+                                <li><i data-feather="check" class="text-success me-1"></i> Questions are automatically extracted</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Images and formulas are identified</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Topics and units are categorized</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Questions become available for paper generation</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('{{ form.file.id }}');
+    const placeholder = uploadArea.querySelector('.upload-placeholder');
+    const fileInfo = uploadArea.querySelector('.file-info');
+    const clearBtn = document.getElementById('clearFile');
+
+    // Drag and drop functionality
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, preventDefaults, false);
+        document.body.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, highlight, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        uploadArea.addEventListener(eventName, unhighlight, false);
+    });
+
+    uploadArea.addEventListener('drop', handleDrop, false);
+    uploadArea.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', handleFileSelect);
+    clearBtn.addEventListener('click', clearFile);
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function highlight() {
+        uploadArea.classList.add('border-primary', 'bg-light');
+    }
+
+    function unhighlight() {
+        uploadArea.classList.remove('border-primary', 'bg-light');
+    }
+
+    function handleDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    }
+
+    function handleFileSelect(e) {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    }
+
+    function handleFile(file) {
+        if (file.type === 'application/pdf') {
+            displayFile(file);
+        } else {
+            alert('Please select a PDF file.');
+        }
+    }
+
+    function displayFile(file) {
+        placeholder.style.display = 'none';
+        fileInfo.classList.remove('d-none');
+        fileInfo.querySelector('.filename').textContent = file.name;
+        fileInfo.querySelector('.file-size').textContent = `(${formatFileSize(file.size)})`;
+    }
+
+    function clearFile() {
+        fileInput.value = '';
+        placeholder.style.display = 'block';
+        fileInfo.classList.add('d-none');
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+});
+</script>
+{% endblock %}

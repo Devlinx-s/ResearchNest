@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Subjects - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i data-feather="book" class="me-2"></i>Manage Subjects</h2>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
+            <i data-feather="arrow-left" class="me-1"></i>Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Add Subject Form -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Add New Subject</h5>
+        </div>
+        <div class="card-body">
+            <form method="POST" action="{{ url_for('add_subject') }}" class="row g-3">
+                {{ form.hidden_tag() }}
+                <div class="col-md-4">
+                    {{ form.name(class="form-control", placeholder="Subject Name") }}
+                </div>
+                <div class="col-md-3">
+                    {{ form.code(class="form-control", placeholder="Subject Code") }}
+                </div>
+                <div class="col-md-3">
+                    {{ form.department_id(class="form-select") }}
+                </div>
+                <div class="col-md-2">
+                    {{ form.submit(class="btn btn-primary w-100") }}
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Subjects List -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="card-title mb-0">Existing Subjects</h5>
+        </div>
+        <div class="card-body">
+            {% if subjects %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th>Department</th>
+                            <th>Units</th>
+                            <th>Documents</th>
+                            <th>Created</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for subject in subjects %}
+                        <tr>
+                            <td><strong>{{ subject.code }}</strong></td>
+                            <td>{{ subject.name }}</td>
+                            <td>{{ subject.dept.name if subject.dept else 'N/A' }}</td>
+                            <td>
+                                <span class="badge bg-info">{{ subject.units|length }} units</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-success">{{ subject.question_documents|length }} docs</span>
+                            </td>
+                            <td>{{ subject.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <button class="btn btn-outline-primary" onclick="editSubject({{ subject.id }})">
+                                        <i data-feather="edit-2"></i>
+                                    </button>
+                                    <button class="btn btn-outline-danger" onclick="deleteSubject({{ subject.id }})">
+                                        <i data-feather="trash-2"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4">
+                <i data-feather="book" class="display-4 text-muted mb-3"></i>
+                <p class="text-muted">No subjects found. Add your first subject above.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function editSubject(id) {
+    // Implement edit functionality
+    alert('Edit functionality to be implemented');
+}
+
+function deleteSubject(id) {
+    if (confirm('Are you sure you want to delete this subject? This will also delete all associated units and topics.')) {
+        // Implement delete functionality
+        alert('Delete functionality to be implemented');
+    }
+}
+</script>
+{% endblock %}

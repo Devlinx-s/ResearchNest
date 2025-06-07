@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+
+{% block title %}Question Documents - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i data-feather="file-text" class="me-2"></i>Question Documents</h2>
+        <div>
+            <a href="{{ url_for('upload_question_document') }}" class="btn btn-primary">
+                <i data-feather="upload" class="me-1"></i>Upload Document
+            </a>
+            <a href="{{ url_for('generate_question_paper') }}" class="btn btn-success">
+                <i data-feather="file-plus" class="me-1"></i>Generate Paper
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter Section -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="GET" class="row g-3">
+                <div class="col-md-4">
+                    <select name="subject_id" class="form-select">
+                        <option value="">All Subjects</option>
+                        {% for subject in subjects %}
+                        <option value="{{ subject.id }}" {{ 'selected' if request.args.get('subject_id', type=int) == subject.id }}>
+                            {{ subject.code }} - {{ subject.name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-outline-primary">Filter</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Documents List -->
+    {% if documents.items %}
+    <div class="row">
+        {% for document in documents.items %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <small class="text-muted">{{ document.subject.code }}</small>
+                    <span class="badge bg-{{ 'success' if document.extraction_status == 'completed' else 'warning' if document.extraction_status == 'extracting' else 'secondary' }}">
+                        {{ document.extraction_status.title() }}
+                    </span>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title">{{ document.title }}</h6>
+                    <p class="card-text text-muted small">
+                        <i data-feather="book" class="me-1"></i>{{ document.subject.name }}<br>
+                        <i data-feather="calendar" class="me-1"></i>{{ document.academic_year or 'N/A' }}
+                        {% if document.semester %} - Semester {{ document.semester }}{% endif %}<br>
+                        <i data-feather="file" class="me-1"></i>{{ document.document_type.replace('_', ' ').title() }}<br>
+                        <i data-feather="help-circle" class="me-1"></i>{{ document.total_questions }} questions
+                    </p>
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            {{ document.uploaded_at.strftime('%Y-%m-%d') }}
+                        </small>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{{ url_for('question_document_detail', id=document.id) }}" class="btn btn-outline-primary">
+                                <i data-feather="eye" class="me-1"></i>View
+                            </a>
+                            <a href="{{ url_for('download_question_document', id=document.id) }}" class="btn btn-outline-secondary">
+                                <i data-feather="download" class="me-1"></i>Download
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Pagination -->
+    {% if documents.pages > 1 %}
+    <nav aria-label="Documents pagination">
+        <ul class="pagination justify-content-center">
+            {% if documents.has_prev %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('question_documents', page=documents.prev_num, subject_id=request.args.get('subject_id')) }}">Previous</a>
+            </li>
+            {% endif %}
+            
+            {% for page_num in documents.iter_pages() %}
+                {% if page_num %}
+                    {% if page_num != documents.page %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('question_documents', page=page_num, subject_id=request.args.get('subject_id')) }}">{{ page_num }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item active">
+                        <span class="page-link">{{ page_num }}</span>
+                    </li>
+                    {% endif %}
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">…</span>
+                </li>
+                {% endif %}
+            {% endfor %}
+            
+            {% if documents.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="{{ url_for('question_documents', page=documents.next_num, subject_id=request.args.get('subject_id')) }}">Next</a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="text-center py-5">
+        <i data-feather="file-text" class="display-1 text-muted mb-3"></i>
+        <h4>No Question Documents Found</h4>
+        <p class="text-muted">Upload your first question document to get started.</p>
+        <a href="{{ url_for('upload_question_document') }}" class="btn btn-primary">
+            <i data-feather="upload" class="me-1"></i>Upload Document
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

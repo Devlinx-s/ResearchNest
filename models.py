@@ -73,7 +73,7 @@ class ResearchPaper(db.Model):
     approved_at = db.Column(db.DateTime, nullable=True)
     
     # Foreign keys
-    uploader_id = db.Column(db.String, db.ForeignKey('users.id'), nullable=False)
+    uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
     # Relationships
     downloads = db.relationship('DownloadLog', backref='paper', lazy=True)
@@ -82,7 +82,7 @@ class DownloadLog(db.Model):
     __tablename__ = 'download_logs'
     id = db.Column(db.Integer, primary_key=True)
     paper_id = db.Column(db.Integer, db.ForeignKey('research_papers.id'), nullable=False)
-    user_id = db.Column(db.String, db.ForeignKey('users.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     ip_address = db.Column(db.String(45))
     user_agent = db.Column(db.String(500))
     downloaded_at = db.Column(db.DateTime, default=datetime.now)
@@ -93,3 +93,122 @@ class Keyword(db.Model):
     name = db.Column(db.String(100), unique=True, nullable=False)
     frequency = db.Column(db.Integer, default=1)
     created_at = db.Column(db.DateTime, default=datetime.now)
+
+class Subject(db.Model):
+    __tablename__ = 'subjects'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    code = db.Column(db.String(20), nullable=False)
+    department_id = db.Column(db.Integer, db.ForeignKey('departments.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    # Relationships
+    units = db.relationship('Unit', backref='subject', lazy=True, cascade='all, delete-orphan')
+    question_documents = db.relationship('QuestionDocument', backref='subject', lazy=True)
+
+class Unit(db.Model):
+    __tablename__ = 'units'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
+    order_index = db.Column(db.Integer, default=1)
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    # Relationships
+    topics = db.relationship('Topic', backref='unit', lazy=True, cascade='all, delete-orphan')
+    questions = db.relationship('Question', backref='unit', lazy=True)
+
+class Topic(db.Model):
+    __tablename__ = 'topics'
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text)
+    unit_id = db.Column(db.Integer, db.ForeignKey('units.id'), nullable=False)
+    difficulty_level = db.Column(db.String(20), default='medium')  # easy, medium, hard
+    created_at = db.Column(db.DateTime, default=datetime.now)
+    
+    # Relationships
+    questions = db.relationship('Question', backref='topic', lazy=True)
+
+class QuestionDocument(db.Model):
+    __tablename__ = 'question_documents'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)
+    original_filename = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_size = db.Column(db.Integer)
+    
+    # Document metadata
+    subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
+    document_type = db.Column(db.String(50), default='question_paper')  # question_paper, assignment, quiz
+    academic_year = db.Column(db.String(20))
+    semester = db.Column(db.String(20))
+    
+    # Processing status
+    status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
+    extraction_status = db.Column(db.String(20), default='pending')  # pending, extracting, completed, failed
+    total_questions = db.Column(db.Integer, default=0)
+    
+    # Timestamps
+    uploaded_at = db.Column(db.DateTime, default=datetime.now)
+    processed_at = db.Column(db.DateTime, nullable=True)
+    
+    # Foreign keys
+    uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    
+    # Relationships
+    questions = db.relationship('Question', backref='document', lazy=True, cascade='all, delete-orphan')
+
+class Question(db.Model):
+    __tablename__ = 'questions'
+    id = db.Column(db.Integer, primary_key=True)
+    question_text = db.Column(db.Text, nullable=False)
+    question_type = db.Column(db.String(50), default='text')  # text, image, formula, mixed
+    difficulty_level = db.Column(db.String(20), default='medium')  # easy, medium, hard
+    marks = db.Column(db.Integer, default=1)
+    
+    # Question content
+    has_image = db.Column(db.Boolean, default=False)
+    has_formula = db.Column(db.Boolean, default=False)
+    image_paths = db.Column(db.Text)  # JSON array of image file paths
+    
+    # Categorization
+    unit_id = db.Column(db.Integer, db.ForeignKey('units.id'), nullable=True)
+    topic_id = db.Column(db.Integer, db.ForeignKey('topics.id'), nullable=True)
+    document_id = db.Column(db.Integer, db.ForeignKey('question_documents.id'), nullable=False)
+    
+    # Position in document
+    page_number = db.Column(db.Integer)
+    question_number = db.Column(db.String(10))
+    
+    # Auto-categorization confidence
+    topic_confidence = db.Column(db.Float, default=0.0)
+    unit_confidence = db.Column(db.Float, default=0.0)
+    
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
+class GeneratedQuestionPaper(db.Model):
+    __tablename__ = 'generated_question_papers'
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(255), nullable=False)
+    subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
+    
+    # Generation parameters
+    unit_ids = db.Column(db.Text)  # JSON array of unit IDs
+    topic_ids = db.Column(db.Text)  # JSON array of topic IDs
+    total_marks = db.Column(db.Integer, default=100)
+    duration_minutes = db.Column(db.Integer, default=180)
+    
+    # File information
+    filename = db.Column(db.String(255), nullable=False)
+    file_path = db.Column(db.String(500), nullable=False)
+    
+    # Metadata
+    generated_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    generated_at = db.Column(db.DateTime, default=datetime.now)
+    download_count = db.Column(db.Integer, default=0)
+    
+    # Relationships
+    generator = db.relationship('User', backref='generated_papers', lazy=True)

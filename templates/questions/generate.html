@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Question Paper - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h4 class="card-title mb-0">
+                        <i data-feather="file-plus" class="me-2"></i>Generate Question Paper
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" id="generatePaperForm">
+                        {{ form.hidden_tag() }}
+                        
+                        <!-- Paper Details -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.title.id }}" class="form-label">Paper Title *</label>
+                                    {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="Enter paper title") }}
+                                    {% if form.title.errors %}
+                                        <div class="invalid-feedback">{{ form.title.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.subject_id.id }}" class="form-label">Subject *</label>
+                                    {{ form.subject_id(class="form-select" + (" is-invalid" if form.subject_id.errors else ""), id="subjectSelect") }}
+                                    {% if form.subject_id.errors %}
+                                        <div class="invalid-feedback">{{ form.subject_id.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Content Selection -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.unit_ids.id }}" class="form-label">Units *</label>
+                                    {{ form.unit_ids(class="form-select" + (" is-invalid" if form.unit_ids.errors else ""), multiple=True, id="unitSelect", size="5") }}
+                                    {% if form.unit_ids.errors %}
+                                        <div class="invalid-feedback">{{ form.unit_ids.errors[0] }}</div>
+                                    {% endif %}
+                                    <small class="form-text text-muted">Hold Ctrl/Cmd to select multiple units</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.topic_ids.id }}" class="form-label">Topics (Optional)</label>
+                                    {{ form.topic_ids(class="form-select", multiple=True, id="topicSelect", size="5") }}
+                                    <small class="form-text text-muted">Leave empty to include all topics from selected units</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Paper Configuration -->
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.total_marks.id }}" class="form-label">Total Marks *</label>
+                                    {{ form.total_marks(class="form-control" + (" is-invalid" if form.total_marks.errors else "")) }}
+                                    {% if form.total_marks.errors %}
+                                        <div class="invalid-feedback">{{ form.total_marks.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="{{ form.duration_minutes.id }}" class="form-label">Duration (minutes) *</label>
+                                    {{ form.duration_minutes(class="form-control" + (" is-invalid" if form.duration_minutes.errors else "")) }}
+                                    {% if form.duration_minutes.errors %}
+                                        <div class="invalid-feedback">{{ form.duration_minutes.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Difficulty Distribution -->
+                        <div class="mb-4">
+                            <label class="form-label">Difficulty Distribution</label>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        {{ form.easy_percentage(class="form-control" + (" is-invalid" if form.easy_percentage.errors else "")) }}
+                                        <span class="input-group-text">% Easy</span>
+                                    </div>
+                                    {% if form.easy_percentage.errors %}
+                                        <div class="invalid-feedback">{{ form.easy_percentage.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        {{ form.medium_percentage(class="form-control" + (" is-invalid" if form.medium_percentage.errors else "")) }}
+                                        <span class="input-group-text">% Medium</span>
+                                    </div>
+                                    {% if form.medium_percentage.errors %}
+                                        <div class="invalid-feedback">{{ form.medium_percentage.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        {{ form.hard_percentage(class="form-control" + (" is-invalid" if form.hard_percentage.errors else "")) }}
+                                        <span class="input-group-text">% Hard</span>
+                                    </div>
+                                    {% if form.hard_percentage.errors %}
+                                        <div class="invalid-feedback">{{ form.hard_percentage.errors[0] }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <small class="form-text text-muted">Total must equal 100%</small>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <a href="{{ url_for('question_documents') }}" class="btn btn-outline-secondary">
+                                <i data-feather="arrow-left" class="me-1"></i>Back
+                            </a>
+                            {{ form.submit(class="btn btn-success px-4") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Generation Tips -->
+            <div class="card mt-4">
+                <div class="card-header">
+                    <h6 class="card-title mb-0">
+                        <i data-feather="lightbulb" class="me-2"></i>Generation Tips
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Selection Guidelines:</h6>
+                            <ul class="list-unstyled">
+                                <li><i data-feather="check" class="text-success me-1"></i> Select specific units for focused papers</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Choose topics for targeted assessment</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Balance difficulty levels appropriately</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Quality Factors:</h6>
+                            <ul class="list-unstyled">
+                                <li><i data-feather="check" class="text-success me-1"></i> More uploaded documents = better papers</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Categorized questions improve selection</li>
+                                <li><i data-feather="check" class="text-success me-1"></i> Mixed question types enhance variety</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const subjectSelect = document.getElementById('subjectSelect');
+    const unitSelect = document.getElementById('unitSelect');
+    const topicSelect = document.getElementById('topicSelect');
+
+    // Update units when subject changes
+    subjectSelect.addEventListener('change', function() {
+        const subjectId = this.value;
+        updateUnits(subjectId);
+        updateTopics(null); // Clear topics
+    });
+
+    // Update topics when units change
+    unitSelect.addEventListener('change', function() {
+        const selectedUnits = Array.from(this.selectedOptions).map(option => option.value);
+        updateTopics(selectedUnits);
+    });
+
+    // Validate percentage totals
+    const percentageInputs = ['{{ form.easy_percentage.id }}', '{{ form.medium_percentage.id }}', '{{ form.hard_percentage.id }}'];
+    percentageInputs.forEach(id => {
+        document.getElementById(id).addEventListener('input', validatePercentages);
+    });
+
+    function updateUnits(subjectId) {
+        if (!subjectId) {
+            unitSelect.innerHTML = '<option value="">Select units</option>';
+            return;
+        }
+
+        fetch(`/api/units/${subjectId}`)
+            .then(response => response.json())
+            .then(data => {
+                unitSelect.innerHTML = '';
+                data.forEach(unit => {
+                    const option = document.createElement('option');
+                    option.value = unit.id;
+                    option.textContent = unit.name;
+                    unitSelect.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching units:', error);
+                unitSelect.innerHTML = '<option value="">Error loading units</option>';
+            });
+    }
+
+    function updateTopics(unitIds) {
+        if (!unitIds || unitIds.length === 0) {
+            topicSelect.innerHTML = '<option value="">Select topics</option>';
+            return;
+        }
+
+        // For simplicity, fetch topics for the first selected unit
+        const unitId = unitIds[0];
+        
+        fetch(`/api/topics/${unitId}`)
+            .then(response => response.json())
+            .then(data => {
+                topicSelect.innerHTML = '';
+                data.forEach(topic => {
+                    const option = document.createElement('option');
+                    option.value = topic.id;
+                    option.textContent = topic.name;
+                    topicSelect.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error('Error fetching topics:', error);
+                topicSelect.innerHTML = '<option value="">Error loading topics</option>';
+            });
+    }
+
+    function validatePercentages() {
+        const easy = parseInt(document.getElementById('{{ form.easy_percentage.id }}').value) || 0;
+        const medium = parseInt(document.getElementById('{{ form.medium_percentage.id }}').value) || 0;
+        const hard = parseInt(document.getElementById('{{ form.hard_percentage.id }}').value) || 0;
+        const total = easy + medium + hard;
+
+        const isValid = total === 100;
+        
+        percentageInputs.forEach(id => {
+            const input = document.getElementById(id);
+            input.classList.toggle('is-invalid', !isValid);
+            input.classList.toggle('is-valid', isValid);
+        });
+
+        // Update submit button
+        const submitBtn = document.querySelector('input[type="submit"]');
+        submitBtn.disabled = !isValid;
+    }
+
+    // Initial validation
+    validatePercentages();
+});
+</script>
+{% endblock %}

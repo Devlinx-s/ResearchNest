@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}{{ document.title }} - Question Document{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i data-feather="file-text" class="me-2"></i>{{ document.title }}</h2>
+        <div>
+            <a href="{{ url_for('download_question_document', id=document.id) }}" class="btn btn-outline-primary">
+                <i data-feather="download" class="me-1"></i>Download PDF
+            </a>
+            <a href="{{ url_for('question_documents') }}" class="btn btn-secondary">
+                <i data-feather="arrow-left" class="me-1"></i>Back to List
+            </a>
+        </div>
+    </div>
+
+    <!-- Document Information -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Document Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-sm-6">
+                            <p><strong>Subject:</strong> {{ document.subject.code }} - {{ document.subject.name }}</p>
+                            <p><strong>Document Type:</strong> {{ document.document_type.replace('_', ' ').title() }}</p>
+                            <p><strong>Academic Year:</strong> {{ document.academic_year or 'N/A' }}</p>
+                        </div>
+                        <div class="col-sm-6">
+                            <p><strong>Semester:</strong> {{ document.semester or 'N/A' }}</p>
+                            <p><strong>Uploaded:</strong> {{ document.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            <p><strong>Uploader:</strong> {{ document.uploader.first_name }} {{ document.uploader.last_name or '' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Processing Status</h5>
+                </div>
+                <div class="card-body text-center">
+                    {% if document.extraction_status == 'completed' %}
+                        <i data-feather="check-circle" class="text-success display-4 mb-2"></i>
+                        <p class="text-success mb-1">Processing Complete</p>
+                        <p class="mb-0"><strong>{{ document.total_questions }}</strong> questions extracted</p>
+                    {% elif document.extraction_status == 'extracting' %}
+                        <div class="spinner-border text-warning mb-3" role="status"></div>
+                        <p class="text-warning mb-0">Processing questions...</p>
+                    {% elif document.extraction_status == 'failed' %}
+                        <i data-feather="x-circle" class="text-danger display-4 mb-2"></i>
+                        <p class="text-danger mb-0">Processing failed</p>
+                    {% else %}
+                        <i data-feather="clock" class="text-muted display-4 mb-2"></i>
+                        <p class="text-muted mb-0">Pending processing</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Extracted Questions -->
+    {% if questions %}
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="card-title mb-0">Extracted Questions ({{ questions|length }})</h5>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" onclick="filterQuestions('all')">All</button>
+                <button class="btn btn-outline-success" onclick="filterQuestions('easy')">Easy</button>
+                <button class="btn btn-outline-warning" onclick="filterQuestions('medium')">Medium</button>
+                <button class="btn btn-outline-danger" onclick="filterQuestions('hard')">Hard</button>
+            </div>
+        </div>
+        <div class="card-body">
+            {% for question in questions %}
+            <div class="question-item mb-4 p-3 border rounded" data-difficulty="{{ question.difficulty_level }}">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <span class="badge bg-primary me-2">Q{{ question.question_number }}</span>
+                        <span class="badge bg-info me-2">Page {{ question.page_number }}</span>
+                        <span class="badge bg-{{ 'success' if question.difficulty_level == 'easy' else 'warning' if question.difficulty_level == 'medium' else 'danger' }}">
+                            {{ question.difficulty_level.title() }}
+                        </span>
+                        <span class="badge bg-secondary">{{ question.marks }} marks</span>
+                        {% if question.has_image %}
+                            <span class="badge bg-info">Images</span>
+                        {% endif %}
+                        {% if question.has_formula %}
+                            <span class="badge bg-warning">Formula</span>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <div class="question-text">
+                    {{ question.question_text }}
+                </div>
+                
+                {% if question.unit or question.topic %}
+                <div class="mt-2">
+                    {% if question.unit %}
+                        <small class="text-muted">
+                            <i data-feather="folder" class="me-1"></i>Unit: {{ question.unit.name }}
+                            {% if question.unit_confidence %}
+                                ({{ (question.unit_confidence * 100)|round }}% confidence)
+                            {% endif %}
+                        </small>
+                    {% endif %}
+                    {% if question.topic %}
+                        <br><small class="text-muted">
+                            <i data-feather="tag" class="me-1"></i>Topic: {{ question.topic.name }}
+                            {% if question.topic_confidence %}
+                                ({{ (question.topic_confidence * 100)|round }}% confidence)
+                            {% endif %}
+                        </small>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% elif document.extraction_status == 'completed' %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i data-feather="alert-circle" class="display-4 text-warning mb-3"></i>
+            <h5>No Questions Found</h5>
+            <p class="text-muted">The document was processed but no questions could be extracted. This might happen if:</p>
+            <ul class="list-unstyled text-muted">
+                <li>• The document doesn't contain structured questions</li>
+                <li>• The text is not machine-readable (scanned images)</li>
+                <li>• The question format is not recognized</li>
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function filterQuestions(difficulty) {
+    const questions = document.querySelectorAll('.question-item');
+    const buttons = document.querySelectorAll('.btn-group .btn');
+    
+    // Reset button states
+    buttons.forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.textContent.toLowerCase() === difficulty) {
+            btn.classList.add('active');
+        }
+    });
+    
+    questions.forEach(question => {
+        if (difficulty === 'all' || question.dataset.difficulty === difficulty) {
+            question.style.display = 'block';
+        } else {
+            question.style.display = 'none';
+        }
+    });
+}
+
+// Set initial active state
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelector('.btn-group .btn').classList.add('active');
+});
+</script>
+{% endblock %}

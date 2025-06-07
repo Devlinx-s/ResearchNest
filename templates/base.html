@@ -53,6 +53,18 @@
                                 <i data-feather="file-text" class="me-1"></i>My Papers
                             </a>
                         </li>
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="questionsDropdown" role="button" data-bs-toggle="dropdown">
+                                <i data-feather="help-circle" class="me-1"></i>Questions
+                            </a>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="{{ url_for('question_documents') }}">View Documents</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('upload_question_document') }}">Upload Document</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('generate_question_paper') }}">Generate Paper</a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('my_generated_papers') }}">My Generated Papers</a></li>
+                            </ul>
+                        </li>
                         {% if current_user.is_admin %}
                             <li class="nav-item dropdown">
                                 <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
@@ -62,6 +74,10 @@
                                     <li><a class="dropdown-item" href="{{ url_for('admin_dashboard') }}">Dashboard</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('admin_papers') }}">Manage Papers</a></li>
                                     <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">Manage Users</a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('manage_subjects') }}">Manage Subjects</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('manage_units') }}">Manage Units</a></li>
+                                    <li><a class="dropdown-item" href="{{ url_for('manage_topics') }}">Manage Topics</a></li>
                                 </ul>
                             </li>
                         {% endif %}

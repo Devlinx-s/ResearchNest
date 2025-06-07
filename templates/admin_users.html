@@ -13,7 +13,40 @@
             <a href="{{ url_for('admin_dashboard') }}" class="btn btn-outline-secondary">
                 <i data-feather="arrow-left" class="me-1"></i>Back to Dashboard
             </a>
+            <button class="btn btn-primary ms-2" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                <i data-feather="user-plus" class="me-1"></i>Add User
+            </button>
         </div>
+    </div>
+
+    <!-- Add User Modal -->
+    <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <form method="POST" action="{{ url_for('admin_add_user') }}">
+            {{ form.hidden_tag() }}
+            <div class="modal-header">
+              <h5 class="modal-title" id="addUserModalLabel">Add New User</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {% for field in [form.first_name, form.last_name, form.email, form.password, form.password_confirm, form.department, form.year] %}
+                  <div class="mb-3">
+                    {{ field.label(class="form-label") }}
+                    {{ field(class="form-control", autocomplete="off") }}
+                    {% for error in field.errors %}
+                      <div class="text-danger small">{{ error }}</div>
+                    {% endfor %}
+                  </div>
+                {% endfor %}
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary">Add User</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
 
     <!-- Users Table -->
@@ -98,21 +131,27 @@
                                             <ul class="dropdown-menu">
                                                 {% if user.id != current_user.id %}
                                                     <li>
-                                                        <a class="dropdown-item" href="{{ url_for('toggle_user_admin', user_id=user.id) }}">
+                                                        <a href="{{ url_for('toggle_user_admin', user_id=user.id) }}" class="dropdown-item">
                                                             {% if user.is_admin %}
                                                                 <i data-feather="user-minus" class="me-1"></i>Remove Admin
                                                             {% else %}
-                                                                <i data-feather="user-plus" class="me-1"></i>Make Admin
+                                                                <i data-feather="user-check" class="me-1"></i>Make Admin
                                                             {% endif %}
                                                         </a>
                                                     </li>
-                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li>
+                                                        <form method="POST" action="{{ url_for('admin_delete_user', user_id=user.id) }}" onsubmit="return confirm('Are you sure you want to delete this user?');">
+                                                            <button type="submit" class="dropdown-item text-danger">
+                                                                <i data-feather="trash-2" class="me-1"></i>Delete User
+                                                            </button>
+                                                        </form>
+                                                    </li>
+                                                    <li>
+                                                        <a href="{{ url_for('admin_users') }}?user_id={{ user.id }}" class="dropdown-item">
+                                                            <i data-feather="file-text" class="me-1"></i>View Papers
+                                                        </a>
+                                                    </li>
                                                 {% endif %}
-                                                <li>
-                                                    <a class="dropdown-item" href="{{ url_for('search', user_id=user.id) }}">
-                                                        <i data-feather="file-text" class="me-1"></i>View Papers
-                                                    </a>
-                                                </li>
                                             </ul>
                                         </div>
                                     </td>

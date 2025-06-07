@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}My Generated Papers - ResearchNest{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i data-feather="file-plus" class="me-2"></i>My Generated Papers</h2>
+        <a href="{{ url_for('generate_question_paper') }}" class="btn btn-success">
+            <i data-feather="plus" class="me-1"></i>Generate New Paper
+        </a>
+    </div>
+
+    {% if papers %}
+    <div class="row">
+        {% for paper in papers %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <small class="text-muted">{{ paper.subject.code }}</small>
+                    <span class="badge bg-info">{{ paper.total_marks }} marks</span>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title">{{ paper.title }}</h6>
+                    <p class="card-text text-muted small">
+                        <i data-feather="book" class="me-1"></i>{{ paper.subject.name }}<br>
+                        <i data-feather="clock" class="me-1"></i>Duration: {{ paper.duration_minutes }} minutes<br>
+                        <i data-feather="download" class="me-1"></i>Downloads: {{ paper.download_count }}
+                    </p>
+                    
+                    {% if paper.unit_ids %}
+                    <div class="mb-2">
+                        <small class="text-muted">Units selected:</small>
+                        {% set unit_ids = paper.unit_ids|from_json %}
+                        {% if unit_ids %}
+                            <div class="mt-1">
+                                {% for unit_id in unit_ids[:3] %}
+                                    <span class="badge bg-light text-dark me-1">Unit {{ unit_id }}</span>
+                                {% endfor %}
+                                {% if unit_ids|length > 3 %}
+                                    <span class="badge bg-light text-dark">+{{ unit_ids|length - 3 }} more</span>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="card-footer">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <small class="text-muted">
+                            {{ paper.generated_at.strftime('%Y-%m-%d') }}
+                        </small>
+                        <a href="{{ url_for('download_generated_paper', id=paper.id) }}" class="btn btn-primary btn-sm">
+                            <i data-feather="download" class="me-1"></i>Download
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-center py-5">
+        <i data-feather="file-plus" class="display-1 text-muted mb-3"></i>
+        <h4>No Generated Papers</h4>
+        <p class="text-muted">You haven't generated any question papers yet.</p>
+        <a href="{{ url_for('generate_question_paper') }}" class="btn btn-success">
+            <i data-feather="plus" class="me-1"></i>Generate Your First Paper
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

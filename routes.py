@@ -3,12 +3,17 @@ from flask_login import current_user, login_user, logout_user
 from sqlalchemy import desc, func
 from datetime import datetime
 import os
+import json
 
 from app import app, db
 from auth import require_login, require_admin
-from models import ResearchPaper, Department, User, DownloadLog, Keyword
-from forms import UploadPaperForm, SearchForm, UserProfileForm, LoginForm, SignupForm, ChangePasswordForm
+from models import (ResearchPaper, Department, User, DownloadLog, Keyword, 
+                   QuestionDocument, Question, Subject, Unit, Topic, GeneratedQuestionPaper)
+from forms import (UploadPaperForm, SearchForm, UserProfileForm, LoginForm, SignupForm, 
+                  ChangePasswordForm, UploadQuestionDocumentForm, GenerateQuestionPaperForm,
+                  SubjectManagementForm, UnitManagementForm, TopicManagementForm)
 from utils import extract_pdf_metadata, extract_keywords_from_text, save_uploaded_file, format_file_size
+from question_processor import QuestionExtractor, QuestionPaperGenerator
 
 # Make session permanent
 @app.before_request
@@ -306,7 +311,7 @@ def profile():
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('profile'))
     
-    return render_template('profile.html', form=form)
+    return render_template('profile.html', form=form, user=current_user)
 
 @app.route('/change-password', methods=['GET', 'POST'])
 @require_login
@@ -362,8 +367,7 @@ def admin_papers():
     )
     
     return render_template('admin_papers.html', 
-                         papers=papers_pagination.items,
-                         pagination=papers_pagination,
+                         papers=papers_pagination,
                          status_filter=status_filter,
                          format_file_size=format_file_size)
 
@@ -375,10 +379,50 @@ def admin_users():
     users_pagination = User.query.order_by(desc(User.created_at)).paginate(
         page=page, per_page=20, error_out=False
     )
-    
+    form = SignupForm()
     return render_template('admin_users.html', 
-                         users=users_pagination.items,
-                         pagination=users_pagination)
+                         users=users_pagination,
+                         form=form)
+
+@app.route('/admin/users/add', methods=['GET', 'POST'])
+@require_admin
+def admin_add_user():
+    form = SignupForm()
+    if form.validate_on_submit():
+        existing_user = User.query.filter_by(email=form.email.data).first()
+        if existing_user:
+            flash('Email address already registered. Please use a different email.', 'error')
+            return redirect(url_for('admin_users'))
+        user = User(
+            email=form.email.data,
+            first_name=form.first_name.data,
+            last_name=form.last_name.data or '',
+            department=form.department.data or '',
+            year=form.year.data
+        )
+        user.set_password(form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash('User added successfully!', 'success')
+        return redirect(url_for('admin_users'))
+    # If GET or invalid POST, show the users page with the form and errors
+    page = request.args.get('page', 1, type=int)
+    users_pagination = User.query.order_by(desc(User.created_at)).paginate(
+        page=page, per_page=20, error_out=False
+    )
+    return render_template('admin_users.html', users=users_pagination, form=form)
+
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+@require_admin
+def admin_delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash('You cannot delete your own account.', 'error')
+        return redirect(url_for('admin_users'))
+    db.session.delete(user)
+    db.session.commit()
+    flash('User deleted successfully.', 'success')
+    return redirect(url_for('admin_users'))
 
 @app.route('/admin/approve/<int:id>')
 @require_admin
@@ -478,3 +522,305 @@ def api_top_keywords():
         'data': [keyword.frequency for keyword in keywords]
     }
     return jsonify(data)
+
+# Question Document Management Routes
+
+@app.route('/questions')
+@require_login
+def question_documents():
+    """View all question documents."""
+    page = request.args.get('page', 1, type=int)
+    subject_id = request.args.get('subject_id', type=int)
+    
+    query = QuestionDocument.query
+    if subject_id:
+        query = query.filter_by(subject_id=subject_id)
+    
+    documents = query.order_by(desc(QuestionDocument.uploaded_at)).paginate(
+        page=page, per_page=10, error_out=False
+    )
+    
+    subjects = Subject.query.all()
+    return render_template('questions/list.html', documents=documents, subjects=subjects)
+
+@app.route('/questions/upload', methods=['GET', 'POST'])
+@require_login
+def upload_question_document():
+    """Upload a new question document."""
+    form = UploadQuestionDocumentForm()
+    
+    if form.validate_on_submit():
+        file = form.file.data
+        subject = Subject.query.get(form.subject_id.data)
+        
+        if not subject:
+            flash('Invalid subject selected.', 'error')
+            return render_template('questions/upload.html', form=form)
+        
+        # Save file
+        filename, file_path = save_question_document_file(file, subject, form.academic_year.data)
+        
+        if not filename:
+            flash('Error saving file. Please try again.', 'error')
+            return render_template('questions/upload.html', form=form)
+        
+        # Create question document record
+        document = QuestionDocument(
+            title=form.title.data,
+            filename=filename,
+            original_filename=file.filename,
+            file_path=file_path,
+            file_size=os.path.getsize(file_path),
+            subject_id=form.subject_id.data,
+            document_type=form.document_type.data,
+            academic_year=form.academic_year.data,
+            semester=form.semester.data,
+            uploader_id=current_user.id
+        )
+        
+        db.session.add(document)
+        db.session.commit()
+        
+        # Start background processing
+        extractor = QuestionExtractor()
+        extractor.process_document(document.id)
+        
+        flash('Question document uploaded and processing started!', 'success')
+        return redirect(url_for('question_document_detail', id=document.id))
+    
+    return render_template('questions/upload.html', form=form)
+
+@app.route('/questions/<int:id>')
+@require_login
+def question_document_detail(id):
+    """View question document details and extracted questions."""
+    document = QuestionDocument.query.get_or_404(id)
+    questions = Question.query.filter_by(document_id=id).order_by(Question.page_number, Question.question_number).all()
+    
+    return render_template('questions/detail.html', document=document, questions=questions)
+
+@app.route('/questions/<int:id>/download')
+@require_login
+def download_question_document(id):
+    """Download a question document."""
+    document = QuestionDocument.query.get_or_404(id)
+    
+    try:
+        return send_file(
+            document.file_path,
+            as_attachment=True,
+            download_name=document.original_filename,
+            mimetype='application/pdf'
+        )
+    except FileNotFoundError:
+        flash('File not found.', 'error')
+        return redirect(url_for('question_document_detail', id=id))
+
+@app.route('/generate-paper', methods=['GET', 'POST'])
+@require_login
+def generate_question_paper():
+    """Generate a custom question paper."""
+    form = GenerateQuestionPaperForm()
+    
+    if form.validate_on_submit():
+        # Generate question paper
+        generator = QuestionPaperGenerator()
+        
+        difficulty_distribution = {
+            'easy': form.easy_percentage.data / 100.0,
+            'medium': form.medium_percentage.data / 100.0,
+            'hard': form.hard_percentage.data / 100.0
+        }
+        
+        result = generator.generate_question_paper(
+            subject_id=form.subject_id.data,
+            unit_ids=form.unit_ids.data if form.unit_ids.data else None,
+            topic_ids=form.topic_ids.data if form.topic_ids.data else None,
+            total_marks=form.total_marks.data,
+            difficulty_distribution=difficulty_distribution
+        )
+        
+        if result:
+            filename, file_path = result
+            
+            # Save generated paper record
+            paper = GeneratedQuestionPaper(
+                title=form.title.data,
+                subject_id=form.subject_id.data,
+                unit_ids=json.dumps(form.unit_ids.data),
+                topic_ids=json.dumps(form.topic_ids.data),
+                total_marks=form.total_marks.data,
+                duration_minutes=form.duration_minutes.data,
+                filename=filename,
+                file_path=file_path,
+                generated_by=current_user.id
+            )
+            
+            db.session.add(paper)
+            db.session.commit()
+            
+            flash('Question paper generated successfully!', 'success')
+            return redirect(url_for('download_generated_paper', id=paper.id))
+        else:
+            flash('Unable to generate question paper. Please check your selection criteria.', 'error')
+    
+    return render_template('questions/generate.html', form=form)
+
+@app.route('/generated-papers/<int:id>/download')
+@require_login
+def download_generated_paper(id):
+    """Download a generated question paper."""
+    paper = GeneratedQuestionPaper.query.get_or_404(id)
+    paper.download_count += 1
+    db.session.commit()
+    
+    try:
+        return send_file(
+            paper.file_path,
+            as_attachment=True,
+            download_name=f"{paper.title}.pdf",
+            mimetype='application/pdf'
+        )
+    except FileNotFoundError:
+        flash('File not found.', 'error')
+        return redirect(url_for('my_generated_papers'))
+
+@app.route('/my-generated-papers')
+@require_login
+def my_generated_papers():
+    """View user's generated question papers."""
+    papers = GeneratedQuestionPaper.query.filter_by(generated_by=current_user.id)\
+        .order_by(desc(GeneratedQuestionPaper.generated_at)).all()
+    
+    return render_template('questions/my_generated.html', papers=papers)
+
+# Subject, Unit, and Topic Management Routes
+
+@app.route('/admin/subjects')
+@require_admin
+def manage_subjects():
+    """Manage subjects."""
+    subjects = Subject.query.order_by(Subject.name).all()
+    form = SubjectManagementForm()
+    
+    return render_template('admin/subjects.html', subjects=subjects, form=form)
+
+@app.route('/admin/subjects/add', methods=['POST'])
+@require_admin
+def add_subject():
+    """Add a new subject."""
+    form = SubjectManagementForm()
+    
+    if form.validate_on_submit():
+        # Check if subject code already exists
+        existing = Subject.query.filter_by(code=form.code.data).first()
+        if existing:
+            flash('Subject code already exists.', 'error')
+            return redirect(url_for('manage_subjects'))
+        
+        subject = Subject(
+            name=form.name.data,
+            code=form.code.data,
+            department_id=form.department_id.data
+        )
+        
+        db.session.add(subject)
+        db.session.commit()
+        
+        flash('Subject added successfully!', 'success')
+    
+    return redirect(url_for('manage_subjects'))
+
+@app.route('/admin/units')
+@require_admin
+def manage_units():
+    """Manage units."""
+    units = Unit.query.order_by(Unit.subject_id, Unit.order_index).all()
+    form = UnitManagementForm()
+    
+    return render_template('admin/units.html', units=units, form=form)
+
+@app.route('/admin/units/add', methods=['POST'])
+@require_admin
+def add_unit():
+    """Add a new unit."""
+    form = UnitManagementForm()
+    
+    if form.validate_on_submit():
+        unit = Unit(
+            name=form.name.data,
+            description=form.description.data,
+            subject_id=form.subject_id.data,
+            order_index=form.order_index.data
+        )
+        
+        db.session.add(unit)
+        db.session.commit()
+        
+        flash('Unit added successfully!', 'success')
+    
+    return redirect(url_for('manage_units'))
+
+@app.route('/admin/topics')
+@require_admin
+def manage_topics():
+    """Manage topics."""
+    topics = Topic.query.order_by(Topic.unit_id, Topic.name).all()
+    form = TopicManagementForm()
+    
+    return render_template('admin/topics.html', topics=topics, form=form)
+
+@app.route('/admin/topics/add', methods=['POST'])
+@require_admin
+def add_topic():
+    """Add a new topic."""
+    form = TopicManagementForm()
+    
+    if form.validate_on_submit():
+        topic = Topic(
+            name=form.name.data,
+            description=form.description.data,
+            unit_id=form.unit_id.data,
+            difficulty_level=form.difficulty_level.data
+        )
+        
+        db.session.add(topic)
+        db.session.commit()
+        
+        flash('Topic added successfully!', 'success')
+    
+    return redirect(url_for('manage_topics'))
+
+# API endpoints for dynamic form updates
+@app.route('/api/units/<int:subject_id>')
+def api_get_units(subject_id):
+    """Get units for a subject."""
+    units = Unit.query.filter_by(subject_id=subject_id).order_by(Unit.order_index).all()
+    return jsonify([{'id': unit.id, 'name': unit.name} for unit in units])
+
+@app.route('/api/topics/<int:unit_id>')
+def api_get_topics(unit_id):
+    """Get topics for a unit."""
+    topics = Topic.query.filter_by(unit_id=unit_id).order_by(Topic.name).all()
+    return jsonify([{'id': topic.id, 'name': topic.name} for topic in topics])
+
+def save_question_document_file(file, subject, academic_year):
+    """Save uploaded question document file."""
+    if file and file.filename.lower().endswith('.pdf'):
+        from werkzeug.utils import secure_filename
+        
+        filename = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secure_filename(file.filename)}"
+        
+        # Create directory structure: uploads/questions/subject_code/year/
+        base_dir = app.config.get('UPLOAD_FOLDER', 'uploads')
+        year_dir = academic_year or datetime.now().year
+        dept_dir = os.path.join(base_dir, 'questions', secure_filename(subject.code), str(year_dir))
+        
+        os.makedirs(dept_dir, exist_ok=True)
+        
+        file_path = os.path.join(dept_dir, filename)
+        file.save(file_path)
+        
+        return filename, file_path
+    
+    return None, None
