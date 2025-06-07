@@ -1,93 +1,134 @@
-# ResearchNest - Research Paper Archive System
+# ResearchNest - Academic Question Bank & Paper Generation System
 
-A standalone Flask-based research paper archive system for students and researchers to upload, search, and discover academic papers with automatic metadata extraction and analytics.
+A comprehensive Flask-based platform for educational institutions to manage question banks, generate custom question papers, and organize academic content by subjects, units, and topics.
 
-## Quick Start
+## 🚀 Quick Start
 
-1. **Install dependencies:**
+1. **Set up the environment:**
    ```bash
-   pip install -r standalone_requirements.txt
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
    ```
 
-2. **Run the application:**
+2. **Initialize the database:**
+   ```bash
+   python
+   >>> from app import app, db
+   >>> with app.app_context():
+   ...     db.create_all()
+   ```
+
+3. **Run the application:**
    ```bash
    python main.py
    ```
 
-3. **Access the system:**
+4. **Access the system:**
    - Open browser: `http://localhost:5000`
-   - Admin login: `admin@researchnest.local`
-   - Student login: Any other email address
+   - Admin login: `admin@researchnest.local` (password: admin123)
+   - Student login: Any email (auto-creates account on first login)
 
-## Core Features
+## ✨ Core Features
 
-- **PDF Upload**: Automatic metadata extraction (title, authors, keywords)
-- **Advanced Search**: Filter by department, year, keywords, full-text
-- **Download Tracking**: Monitor paper popularity and usage
-- **Analytics Dashboard**: Visual charts for trends and statistics
-- **User Management**: Role-based access (Students vs Administrators)
-- **Paper Moderation**: Admin approval workflow
+### Question Bank Management
+- **Document Upload**: Upload question papers, assignments, and quizzes
+- **Automatic Question Extraction**: Extract questions from PDFs with metadata
+- **Question Categorization**: Organize by subject, unit, and topic
+- **Difficulty Level**: Tag questions by difficulty (easy, medium, hard)
 
-## Technology Stack
+### Paper Generation
+- **Custom Paper Creation**: Generate question papers based on criteria
+- **Smart Distribution**: Control difficulty levels and mark distribution
+- **Multiple Question Types**: Support for text, image, and formula-based questions
+- **Export Options**: Download generated papers in various formats
 
-- **Backend**: Flask 3.1, SQLAlchemy, SQLite/PostgreSQL
-- **PDF Processing**: PyMuPDF for metadata extraction  
-- **Frontend**: Bootstrap 5 dark theme, Chart.js analytics
-- **Authentication**: Simple email-based demo system
-- **File Storage**: Local organized directory structure
+### Academic Organization
+- **Subject Hierarchy**: Structured by departments → subjects → units → topics
+- **Search & Filter**: Find questions by multiple criteria
+- **User Management**: Role-based access control (Admin/Instructor/Student)
+- **Analytics**: Track question usage and paper generation history
 
-## File Structure
+## 🛠️ Technology Stack
+
+- **Backend**: Python 3.11+, Flask 3.1, SQLAlchemy
+- **Database**: SQLite (default) or PostgreSQL
+- **PDF Processing**: PyMuPDF (fitz), OpenCV for image processing
+- **NLP**: NLTK for text processing and analysis
+- **Frontend**: Bootstrap 5, Chart.js, Feather Icons
+- **AI/ML**: scikit-learn for text similarity and classification
+
+## 📂 Project Structure
 
 ```
 ResearchNest/
-├── main.py                  # Application entry point
-├── app.py                   # Flask configuration
-├── routes.py                # Route handlers
-├── auth.py                  # Authentication system
-├── models.py                # Database models
-├── forms.py                 # Form definitions
-├── utils.py                 # Utility functions
-├── standalone_requirements.txt
-├── templates/               # HTML templates
-├── static/                  # CSS, JS, images
-└── uploads/                 # Uploaded papers
+├── app.py                   # Flask application setup
+├── auth.py                  # Authentication and authorization
+├── models.py                # Database models (User, Subject, Unit, Topic, Question, etc.)
+├── question_processor.py    # Core question extraction and paper generation logic
+├── routes.py                # Application routes and views
+├── forms.py                 # Form definitions using Flask-WTF
+├── utils.py                 # Helper functions and utilities
+├── requirements.txt         # Python dependencies
+├── static/                  # Static files (CSS, JS, images)
+│   ├── css/
+│   └── js/
+└── templates/              # Jinja2 templates
+    ├── admin/              # Admin interface templates
+    ├── questions/          # Question management templates
+    └── ...
 ```
 
-## System Requirements
+## 🔧 System Requirements
 
-- Python 3.11+
-- SQLite (included) or PostgreSQL (optional)
-- 50MB disk space minimum
-- No external API keys required
+- Python 3.11 or higher
+- SQLite (included) or PostgreSQL
+- 1GB RAM minimum, 2GB+ recommended
+- 100MB free disk space (plus space for uploaded files)
 
-## Database
+## 🔒 Security Features
 
-- **Default**: SQLite (no setup required)
-- **Optional**: PostgreSQL for production
-- Auto-creates all tables and sample data
-- Organized file storage by department/year
-
-## Authentication
-
-- Demo system for local development
-- Admin user: `admin@researchnest.local` 
-- Any email creates a student account
-- No external OAuth dependencies
-
-## Administration
-
-- Access admin dashboard at `/admin`
-- View analytics and system statistics
-- Moderate paper submissions
-- Manage user accounts and permissions
-- Export data and generate reports
-
-## Security
-
-- File type validation (PDF only)
+- Secure password hashing with Werkzeug
+- CSRF protection
+- File type validation
 - Role-based access control
-- Secure file storage and validation
 - Session management
-- Admin-only sensitive operations
+- Input sanitization
 
-This is a completely self-contained system suitable for academic institutions, research groups, or local deployment without external dependencies.
+## 📚 Documentation
+
+### For Administrators
+- Manage departments, subjects, and courses
+- Set up academic structures
+- Monitor system usage
+- Generate reports
+
+### For Instructors
+- Upload and organize question banks
+- Create custom question papers
+- Track question usage and difficulty
+- Manage class materials
+
+### For Students
+- Access question banks
+- Practice with past papers
+- Download study materials
+- Track progress
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with ❤️ for educational institutions
+- Special thanks to all contributors
+- Inspired by the need for better academic resource management
