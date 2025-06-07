@@ -3,10 +3,9 @@ import logging
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
-from werkzeug.middleware.proxy_fix import ProxyFix
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class Base(DeclarativeBase):
     pass
@@ -15,18 +14,15 @@ db = SQLAlchemy(model_class=Base)
 
 # Create the app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET")
-app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
 
-# Configure the database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
-app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
-    "pool_recycle": 300,
-    "pool_pre_ping": True,
-}
+# Configure database - use SQLite by default
+database_url = os.environ.get("DATABASE_URL", "sqlite:///researchnest.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # File upload configuration
-app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB max file size
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB
 app.config['UPLOAD_FOLDER'] = 'uploads/papers'
 
 # Initialize the app with the extension
@@ -37,12 +33,11 @@ os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 with app.app_context():
     # Import models here so their tables are created
-    import models  # noqa: F401
+    from models import Department, User
     db.create_all()
     logging.info("Database tables created")
     
     # Initialize default departments if none exist
-    from models import Department
     if Department.query.count() == 0:
         departments = [
             'Computer Science',
@@ -63,3 +58,17 @@ with app.app_context():
         
         db.session.commit()
         logging.info("Default departments created")
+    
+    # Create demo admin user for local development
+    demo_user = User.query.filter_by(email='admin@researchnest.local').first()
+    if not demo_user:
+        demo_user = User(
+            id='admin-demo',
+            email='admin@researchnest.local',
+            first_name='Admin',
+            last_name='User',
+            is_admin=True
+        )
+        db.session.merge(demo_user)
+        db.session.commit()
+        logging.info("Demo admin user created: admin@researchnest.local")

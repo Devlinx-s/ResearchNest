@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <div class="row justify-content-center min-vh-100 align-items-center">
+        <div class="col-md-6 col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <div class="text-center mb-4">
+                        <h3 class="card-title">Sign In to ResearchNest</h3>
+                        <p class="text-muted">Enter your email to access your account</p>
+                    </div>
+                    
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email" required
+                                   placeholder="Enter your email">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100 mb-3">
+                            <i data-feather="log-in" class="me-2"></i>Sign In
+                        </button>
+                        
+                        <div class="text-center">
+                            <small class="text-muted">
+                                Demo mode: Use any email address to create an account
+                            </small>
+                        </div>
+                        
+                        <hr>
+                        
+                        <div class="alert alert-info">
+                            <h6><i data-feather="info" class="me-2"></i>Quick Access</h6>
+                            <p class="mb-2"><strong>Admin:</strong> admin@researchnest.local</p>
+                            <p class="mb-0"><strong>Student:</strong> Any other email address</p>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        feather.replace();
+    });
+</script>
+{% endblock %}
