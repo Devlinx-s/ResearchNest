@@ -1,8 +1,28 @@
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired, FileAllowed
-from wtforms import StringField, TextAreaField, SelectField, IntegerField, SubmitField
-from wtforms.validators import DataRequired, Length, NumberRange
+from wtforms import StringField, TextAreaField, SelectField, IntegerField, SubmitField, PasswordField
+from wtforms.validators import DataRequired, Length, Email, NumberRange, EqualTo
 from models import Department
+
+
+class LoginForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Sign In')
+
+
+class SignupForm(FlaskForm):
+    email = StringField('Email', validators=[DataRequired(), Email(), Length(max=120)])
+    password = PasswordField('Password', validators=[DataRequired(), Length(min=6)])
+    password_confirm = PasswordField('Confirm Password', validators=[
+        DataRequired(), EqualTo('password', message='Passwords must match')
+    ])
+    first_name = StringField('First Name', validators=[DataRequired(), Length(max=50)])
+    last_name = StringField('Last Name', validators=[Length(max=50)])
+    department = StringField('Department', validators=[Length(max=100)])
+    year = IntegerField('Year', validators=[NumberRange(min=1, max=6)])
+    submit = SubmitField('Sign Up')
+
 
 class UploadPaperForm(FlaskForm):
     file = FileField('PDF File', validators=[
@@ -21,7 +41,8 @@ class UploadPaperForm(FlaskForm):
     
     def __init__(self, *args, **kwargs):
         super(UploadPaperForm, self).__init__(*args, **kwargs)
-        self.department_id.choices = [(d.id, d.name) for d in Department.query.all()]
+        self.department_id.choices = [(dept.id, dept.name) for dept in Department.query.all()]
+
 
 class SearchForm(FlaskForm):
     query = StringField('Search', validators=[Length(max=255)])
@@ -33,10 +54,22 @@ class SearchForm(FlaskForm):
     
     def __init__(self, *args, **kwargs):
         super(SearchForm, self).__init__(*args, **kwargs)
-        choices = [(0, 'All Departments')] + [(d.id, d.name) for d in Department.query.all()]
+        choices = [(0, 'All Departments')] + [(dept.id, dept.name) for dept in Department.query.all()]
         self.department_id.choices = choices
 
+
 class UserProfileForm(FlaskForm):
+    first_name = StringField('First Name', validators=[DataRequired(), Length(max=50)])
+    last_name = StringField('Last Name', validators=[Length(max=50)])
     department = StringField('Department', validators=[Length(max=100)])
     year = IntegerField('Year', validators=[NumberRange(min=1, max=6)])
     submit = SubmitField('Update Profile')
+
+
+class ChangePasswordForm(FlaskForm):
+    current_password = PasswordField('Current Password', validators=[DataRequired()])
+    new_password = PasswordField('New Password', validators=[DataRequired(), Length(min=6)])
+    confirm_password = PasswordField('Confirm New Password', validators=[
+        DataRequired(), EqualTo('new_password', message='Passwords must match')
+    ])
+    submit = SubmitField('Change Password')

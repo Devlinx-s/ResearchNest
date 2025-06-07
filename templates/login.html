@@ -12,28 +12,40 @@
                     </div>
                     
                     <form method="POST">
+                        {{ form.hidden_tag() }}
+                        
                         <div class="mb-3">
-                            <label for="email" class="form-label">Email Address</label>
-                            <input type="email" class="form-control" id="email" name="email" required
-                                   placeholder="Enter your email">
+                            {{ form.email.label(class="form-label") }}
+                            {{ form.email(class="form-control", placeholder="Enter your email address") }}
+                            {% for error in form.email.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        
+                        <div class="mb-3">
+                            {{ form.password.label(class="form-label") }}
+                            {{ form.password(class="form-control", placeholder="Enter your password") }}
+                            {% for error in form.password.errors %}
+                                <div class="text-danger small">{{ error }}</div>
+                            {% endfor %}
                         </div>
                         
                         <button type="submit" class="btn btn-primary w-100 mb-3">
                             <i data-feather="log-in" class="me-2"></i>Sign In
                         </button>
                         
-                        <div class="text-center">
-                            <small class="text-muted">
-                                Demo mode: Use any email address to create an account
-                            </small>
+                        <div class="text-center mb-3">
+                            <p class="mb-0">Don't have an account? 
+                                <a href="{{ url_for('signup') }}" class="text-decoration-none">Sign up here</a>
+                            </p>
                         </div>
                         
                         <hr>
                         
                         <div class="alert alert-info">
-                            <h6><i data-feather="info" class="me-2"></i>Quick Access</h6>
-                            <p class="mb-2"><strong>Admin:</strong> admin@researchnest.local</p>
-                            <p class="mb-0"><strong>Student:</strong> Any other email address</p>
+                            <h6><i data-feather="info" class="me-2"></i>Demo Account</h6>
+                            <p class="mb-2"><strong>Email:</strong> admin@researchnest.local</p>
+                            <p class="mb-0"><strong>Password:</strong> admin123</p>
                         </div>
                     </form>
                 </div>

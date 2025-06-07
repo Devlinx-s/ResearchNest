@@ -31,44 +31,54 @@ db.init_app(app)
 # Create upload directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-with app.app_context():
-    # Import models here so their tables are created
+def initialize_database():
+    """Initialize database with fresh schema and sample data."""
     from models import Department, User
+    
+    # Create all tables
     db.create_all()
     logging.info("Database tables created")
     
-    # Initialize default departments if none exist
-    if Department.query.count() == 0:
-        departments = [
-            'Computer Science',
-            'Mathematics',
-            'Physics',
-            'Chemistry',
-            'Biology',
-            'Engineering',
-            'Business Administration',
-            'Psychology',
-            'Education',
-            'Literature'
-        ]
-        
-        for dept_name in departments:
-            dept = Department(name=dept_name)
-            db.session.add(dept)
-        
-        db.session.commit()
-        logging.info("Default departments created")
+    # Check if already initialized
+    if Department.query.count() > 0:
+        logging.info("Database already initialized")
+        return
     
-    # Create demo admin user for local development
-    demo_user = User.query.filter_by(email='admin@researchnest.local').first()
-    if not demo_user:
-        demo_user = User(
-            id='admin-demo',
-            email='admin@researchnest.local',
-            first_name='Admin',
-            last_name='User',
-            is_admin=True
-        )
-        db.session.merge(demo_user)
+    # Initialize default departments
+    departments = [
+        'Computer Science',
+        'Mathematics', 
+        'Physics',
+        'Chemistry',
+        'Biology',
+        'Engineering',
+        'Business Administration',
+        'Psychology',
+        'Education',
+        'Literature'
+    ]
+    
+    for dept_name in departments:
+        dept = Department(name=dept_name)
+        db.session.add(dept)
+    
+    # Create demo admin user
+    demo_user = User(
+        email='admin@researchnest.local',
+        first_name='Admin',
+        last_name='User',
+        is_admin=True
+    )
+    demo_user.set_password('admin123')
+    db.session.add(demo_user)
+    
+    try:
         db.session.commit()
-        logging.info("Demo admin user created: admin@researchnest.local")
+        logging.info("Database initialized successfully")
+        logging.info("Demo admin: admin@researchnest.local / password: admin123")
+    except Exception as e:
+        db.session.rollback()
+        logging.error(f"Database initialization failed: {e}")
+
+with app.app_context():
+    initialize_database()

@@ -1,16 +1,16 @@
 from datetime import datetime
+from werkzeug.security import generate_password_hash, check_password_hash
 from app import db
-from flask_dance.consumer.storage.sqla import OAuthConsumerMixin
 from flask_login import UserMixin
-from sqlalchemy import UniqueConstraint
 
-# (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
+
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
-    id = db.Column(db.String, primary_key=True)
-    email = db.Column(db.String, unique=True, nullable=True)
-    first_name = db.Column(db.String, nullable=True)
-    last_name = db.Column(db.String, nullable=True)
+    id = db.Column(db.Integer, primary_key=True)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    first_name = db.Column(db.String(50), nullable=False)
+    last_name = db.Column(db.String(50), nullable=True)
     profile_image_url = db.Column(db.String, nullable=True)
     
     # Additional fields for research system
@@ -24,19 +24,17 @@ class User(UserMixin, db.Model):
     # Relationships
     papers = db.relationship('ResearchPaper', backref='uploader', lazy=True)
     downloads = db.relationship('DownloadLog', backref='user', lazy=True)
-
-# (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-class OAuth(OAuthConsumerMixin, db.Model):
-    user_id = db.Column(db.String, db.ForeignKey(User.id))
-    browser_session_key = db.Column(db.String, nullable=False)
-    user = db.relationship(User)
-
-    __table_args__ = (UniqueConstraint(
-        'user_id',
-        'browser_session_key',
-        'provider',
-        name='uq_user_browser_session_key_provider',
-    ),)
+    
+    def set_password(self, password):
+        """Set password hash."""
+        self.password_hash = generate_password_hash(password)
+    
+    def check_password(self, password):
+        """Check password against hash."""
+        return check_password_hash(self.password_hash, password)
+    
+    def __repr__(self):
+        return f'<User {self.email}>'
 
 class Department(db.Model):
     __tablename__ = 'departments'

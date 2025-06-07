@@ -7,7 +7,7 @@ import os
 from app import app, db
 from auth import require_login, require_admin
 from models import ResearchPaper, Department, User, DownloadLog, Keyword
-from forms import UploadPaperForm, SearchForm, UserProfileForm
+from forms import UploadPaperForm, SearchForm, UserProfileForm, LoginForm, SignupForm, ChangePasswordForm
 from utils import extract_pdf_metadata, extract_keywords_from_text, save_uploaded_file, format_file_size
 
 # Make session permanent
@@ -21,32 +21,54 @@ def inject_user():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Simple login for demo purposes."""
+    """User login with email and password."""
     if current_user.is_authenticated:
         return redirect(url_for('index'))
     
-    if request.method == 'POST':
-        email = request.form.get('email')
-        
-        # For demo, accept any email and create/login user
-        user = User.query.filter_by(email=email).first()
-        if not user:
-            # Create new user
-            user = User(
-                id=f"user-{email.replace('@', '-').replace('.', '-')}",
-                email=email,
-                first_name=email.split('@')[0].title(),
-                last_name='',
-                is_admin=(email == 'admin@researchnest.local')
-            )
-            db.session.add(user)
-            db.session.commit()
-        
-        login_user(user)
-        flash(f'Welcome, {user.first_name}!', 'success')
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(email=form.email.data).first()
+        if user and user.check_password(form.password.data):
+            login_user(user)
+            flash(f'Welcome back, {user.first_name}!', 'success')
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('index'))
+        else:
+            flash('Invalid email or password.', 'error')
+    
+    return render_template('login.html', form=form)
+
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """User registration."""
+    if current_user.is_authenticated:
         return redirect(url_for('index'))
     
-    return render_template('login.html')
+    form = SignupForm()
+    if form.validate_on_submit():
+        # Check if email already exists
+        existing_user = User.query.filter_by(email=form.email.data).first()
+        if existing_user:
+            flash('Email address already registered. Please use a different email.', 'error')
+            return render_template('signup.html', form=form)
+        
+        # Create new user
+        user = User(
+            email=form.email.data,
+            first_name=form.first_name.data,
+            last_name=form.last_name.data or '',
+            department=form.department.data or '',
+            year=form.year.data
+        )
+        user.set_password(form.password.data)
+        
+        db.session.add(user)
+        db.session.commit()
+        
+        flash('Registration successful! You can now log in.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('signup.html', form=form)
 
 @app.route('/logout')
 def logout():
@@ -276,6 +298,8 @@ def profile():
     form = UserProfileForm(obj=current_user)
     
     if form.validate_on_submit():
+        current_user.first_name = form.first_name.data
+        current_user.last_name = form.last_name.data
         current_user.department = form.department.data
         current_user.year = form.year.data
         db.session.commit()
@@ -283,6 +307,23 @@ def profile():
         return redirect(url_for('profile'))
     
     return render_template('profile.html', form=form)
+
+@app.route('/change-password', methods=['GET', 'POST'])
+@require_login
+def change_password():
+    """Change user password."""
+    form = ChangePasswordForm()
+    
+    if form.validate_on_submit():
+        if current_user.check_password(form.current_password.data):
+            current_user.set_password(form.new_password.data)
+            db.session.commit()
+            flash('Password changed successfully!', 'success')
+            return redirect(url_for('profile'))
+        else:
+            flash('Current password is incorrect.', 'error')
+    
+    return render_template('change_password.html', form=form)
 
 # Admin routes
 @app.route('/admin')
