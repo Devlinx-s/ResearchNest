@@ -18,12 +18,15 @@ def generate_unique_filename(original_filename):
     return unique_name
 
 def extract_pdf_metadata(file_path):
-    """Extract metadata from PDF file using PyMuPDF."""
+    """Extract comprehensive metadata from PDF file using PyMuPDF."""
+    from datetime import datetime
+    
     metadata = {
-        'title': None,
-        'authors': None,
-        'keywords': None,
-        'abstract': None
+        'title': '',
+        'authors': '',
+        'keywords': '',
+        'abstract': '',
+        'publication_year': None
     }
     
     try:
@@ -36,36 +39,97 @@ def extract_pdf_metadata(file_path):
             metadata['authors'] = pdf_metadata.get('author', '').strip()
             metadata['keywords'] = pdf_metadata.get('keywords', '').strip()
         
-        # If title is missing, try to extract from first page
-        if not metadata['title'] and doc.page_count > 0:
-            first_page = doc[0]
-            text = first_page.get_text()
-            
-            # Look for title patterns
-            lines = text.split('\n')
-            for i, line in enumerate(lines[:10]):  # Check first 10 lines
+        # Extract text from first few pages for analysis
+        full_text = ""
+        if doc.page_count > 0:
+            for page_num in range(min(3, doc.page_count)):
+                full_text += doc[page_num].get_text() + "\n"
+        
+        # Enhanced title extraction if missing
+        if not metadata['title'] and full_text:
+            lines = full_text.split('\n')
+            for i, line in enumerate(lines[:15]):
                 line = line.strip()
-                if len(line) > 10 and len(line) < 200:  # Reasonable title length
-                    # Check if it looks like a title (longer than usual, often in caps or title case)
-                    if line.isupper() or line.istitle():
+                if (10 < len(line) < 150 and 
+                    not line.lower().startswith(('abstract', 'introduction', 'keywords', 'references')) and
+                    not re.match(r'^\d+\.', line) and  # Not numbered section
+                    re.search(r'[a-zA-Z]', line)):  # Contains letters
+                    # Prefer lines that look like titles
+                    if (line.isupper() or line.istitle() or 
+                        any(word in line.lower() for word in ['analysis', 'study', 'research', 'approach', 'method'])):
                         metadata['title'] = line
                         break
+                    elif not metadata['title'] and len(line) > 20:  # Fallback
+                        metadata['title'] = line
         
-        # Extract abstract if available
-        if doc.page_count > 0:
-            full_text = ""
-            for page_num in range(min(3, doc.page_count)):  # Check first 3 pages
-                full_text += doc[page_num].get_text()
+        # Enhanced author extraction
+        if not metadata['authors'] and full_text:
+            # Look for author patterns in first page
+            first_page_text = doc[0].get_text() if doc.page_count > 0 else ""
             
-            # Look for abstract section
-            abstract_match = re.search(r'abstract[:\s]+(.*?)(?:\n\s*\n|\n\s*keywords|\n\s*introduction)', 
-                                     full_text, re.IGNORECASE | re.DOTALL)
-            if abstract_match:
-                abstract = abstract_match.group(1).strip()
-                if len(abstract) > 50:  # Reasonable abstract length
-                    metadata['abstract'] = abstract[:1000]  # Limit length
+            # Common author patterns
+            author_patterns = [
+                r'(?i)(?:by|author[s]?[:\s]*)\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]*\.?)*(?:\s*,\s*[A-Z][a-z]+(?:\s+[A-Z][a-z]*\.?)*)*)',
+                r'^([A-Z][a-z]+\s+[A-Z][a-z]+(?:\s*,\s*[A-Z][a-z]+\s+[A-Z][a-z]+)*)\s*$',
+                r'([A-Z][a-z]+\s+[A-Z]\.\s*[A-Z][a-z]+(?:\s*,\s*[A-Z][a-z]+\s+[A-Z]\.\s*[A-Z][a-z]+)*)'
+            ]
+            
+            for pattern in author_patterns:
+                matches = re.findall(pattern, first_page_text, re.MULTILINE)
+                if matches:
+                    # Take the first reasonable match
+                    for match in matches:
+                        if len(match) > 5 and len(match) < 100:
+                            metadata['authors'] = match.strip()
+                            break
+                    if metadata['authors']:
+                        break
+        
+        # Extract abstract
+        if full_text:
+            abstract_patterns = [
+                r'(?i)abstract[:\s]*\n?(.*?)(?:\n\s*(?:keywords|introduction|1\.|references))',
+                r'(?i)abstract[:\s]*\n?(.*?)(?:\n\s*\n\s*[A-Z])',  # Until next section
+            ]
+            
+            for pattern in abstract_patterns:
+                match = re.search(pattern, full_text, re.DOTALL)
+                if match:
+                    abstract = re.sub(r'\s+', ' ', match.group(1)).strip()
+                    if 50 < len(abstract) < 2000:  # Reasonable abstract length
+                        metadata['abstract'] = abstract
+                        break
+        
+        # Extract keywords if not in metadata
+        if not metadata['keywords'] and full_text:
+            keywords_patterns = [
+                r'(?i)keywords?[:\s]*\n?(.*?)(?:\n\s*(?:introduction|1\.))',
+                r'(?i)key\s*words?[:\s]*\n?(.*?)(?:\n\s*\n)'
+            ]
+            
+            for pattern in keywords_patterns:
+                match = re.search(pattern, full_text, re.DOTALL)
+                if match:
+                    keywords = re.sub(r'\s+', ' ', match.group(1)).strip()
+                    if 10 < len(keywords) < 300:
+                        metadata['keywords'] = keywords
+                        break
+        
+        # Extract publication year
+        current_year = datetime.now().year
+        year_matches = re.findall(r'\b(19|20)\d{2}\b', full_text)
+        if year_matches:
+            years = [int(year) for year in year_matches if 1990 <= int(year) <= current_year]
+            if years:
+                # Prefer years closer to current year for recent research
+                metadata['publication_year'] = max(years)
         
         doc.close()
+        
+        # Clean up extracted data
+        for key, value in metadata.items():
+            if isinstance(value, str):
+                metadata[key] = re.sub(r'\s+', ' ', value).strip()
         
     except Exception as e:
         logging.error(f"Error extracting PDF metadata: {str(e)}")
