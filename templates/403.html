@@ -28,7 +28,7 @@
                     <i data-feather="home" class="me-2"></i>Go Home
                 </a>
                 {% if not current_user.is_authenticated %}
-                    <a href="{{ url_for('replit_auth.login') }}" class="btn btn-outline-secondary">
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-secondary">
                         <i data-feather="log-in" class="me-2"></i>Login
                     </a>
                 {% else %}
