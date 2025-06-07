@@ -4,30 +4,65 @@ A comprehensive Flask-based platform for educational institutions to manage ques
 
 ## 🚀 Quick Start
 
-1. **Set up the environment:**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
-   ```
+### Prerequisites
+- Python 3.11 or higher
+- pip (Python package manager)
+- Git (for cloning the repository)
 
-2. **Initialize the database:**
-   ```bash
-   python
-   >>> from app import app, db
-   >>> with app.app_context():
-   ...     db.create_all()
-   ```
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Devlinx-s/ResearchNest.git
+cd ResearchNest
+```
 
-3. **Run the application:**
-   ```bash
-   python main.py
-   ```
+### 2. Set Up Virtual Environment
+```bash
+# Create a virtual environment
+python -m venv venv
 
-4. **Access the system:**
-   - Open browser: `http://localhost:5000`
-   - Admin login: `admin@researchnest.local` (password: admin123)
-   - Student login: Any email (auto-creates account on first login)
+# Activate the virtual environment
+# On Linux/Mac:
+source venv/bin/activate
+# On Windows:
+# venv\Scripts\activate
+```
+
+### 3. Install Dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Configure Environment Variables
+Create a `.env` file in the project root with the following content:
+```
+# Database Configuration
+DATABASE_URI=sqlite:///researchnest.db
+
+# Flask Configuration
+SESSION_SECRET=your-secret-key-here
+FLASK_ENV=development
+FLASK_DEBUG=True
+
+# File Upload Configuration
+UPLOAD_FOLDER=uploads
+MAX_CONTENT_LENGTH=20971520  # 20MB
+```
+
+### 5. Initialize the Database
+```bash
+# Create database tables
+python -c "from app import app, db; with app.app_context(): db.create_all()"
+```
+
+### 6. Run the Application
+```bash
+python main.py
+```
+
+### 7. Access the System
+- Open your browser and go to: `http://localhost:5000`
+- **Admin login:** `admin@researchnest.local` (password: admin123)
+- **Student login:** Any email (auto-creates account on first login)
 
 ## ✨ Core Features
 
