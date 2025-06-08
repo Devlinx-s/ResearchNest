@@ -859,42 +859,101 @@ class QuestionPaperGenerator:
     
     def select_questions(self, subject_id, unit_ids, topic_ids, total_marks, difficulty_distribution):
         """Select questions based on criteria."""
+        from sqlalchemy import or_
+        
+        # Start building the query
         query = Question.query.join(QuestionDocument).filter(
             QuestionDocument.subject_id == subject_id,
-            QuestionDocument.status == 'approved'
+            QuestionDocument.status == 'approved',
+            Question.marks > 0  # Only include questions with positive marks
         )
         
+        # Add unit filter if specified
         if unit_ids:
             query = query.filter(Question.unit_id.in_(unit_ids))
         
+        # Add topic filter if specified
         if topic_ids:
             query = query.filter(Question.topic_id.in_(topic_ids))
         
+        # Get all matching questions
         all_questions = query.all()
+        
+        if not all_questions:
+            app.logger.warning(f"No questions found for subject_id={subject_id}, "
+                            f"unit_ids={unit_ids}, topic_ids={topic_ids}")
+            return []
+        
+        # Log question counts for debugging
+        app.logger.info(f"Found {len(all_questions)} questions matching the criteria")
         
         # Group by difficulty
         questions_by_difficulty = {
-            'easy': [q for q in all_questions if q.difficulty_level == 'easy'],
-            'medium': [q for q in all_questions if q.difficulty_level == 'medium'],
-            'hard': [q for q in all_questions if q.difficulty_level == 'hard']
+            'easy': [q for q in all_questions if q.difficulty_level.lower() == 'easy'],
+            'medium': [q for q in all_questions if q.difficulty_level.lower() == 'medium'],
+            'hard': [q for q in all_questions if q.difficulty_level.lower() == 'hard']
         }
+        
+        # Log difficulty distribution for debugging
+        for difficulty, questions in questions_by_difficulty.items():
+            app.logger.info(f"Found {len(questions)} {difficulty} questions")
         
         selected_questions = []
         remaining_marks = total_marks
         
+        # Sort each difficulty group by marks (ascending) to better fit the target marks
+        for difficulty in questions_by_difficulty:
+            questions_by_difficulty[difficulty].sort(key=lambda x: x.marks)
+        
         # Select questions based on difficulty distribution
         for difficulty, percentage in difficulty_distribution.items():
+            if percentage <= 0:
+                continue
+                
             target_marks = int(total_marks * percentage)
-            available_questions = questions_by_difficulty[difficulty]
+            available_questions = questions_by_difficulty.get(difficulty, [])
             
+            if not available_questions:
+                app.logger.warning(f"No {difficulty} questions available for selection")
+                continue
+                
             current_marks = 0
+            
+            # Try to find questions that match the target marks
             for question in available_questions:
-                if current_marks + question.marks <= target_marks and remaining_marks >= question.marks:
+                if (current_marks + question.marks <= target_marks and 
+                    remaining_marks >= question.marks):
                     selected_questions.append(question)
                     current_marks += question.marks
                     remaining_marks -= question.marks
-                    
-                if current_marks >= target_marks:
+                
+                # If we've reached or exceeded target marks, move to next difficulty
+                if current_marks >= target_marks or remaining_marks <= 0:
                     break
+            
+            app.logger.info(f"Selected {current_marks}/{target_marks} marks of {difficulty} questions")
         
-        return selected_questions
+        # If we couldn't find enough questions, try to fill the remaining marks with any available questions
+        if remaining_marks > 0 and len(selected_questions) < len(all_questions):
+            app.logger.info(f"Trying to fill remaining {remaining_marks} marks with any suitable questions")
+            
+            # Get all questions not yet selected, sorted by marks (ascending)
+            remaining_questions = [q for q in all_questions if q not in selected_questions]
+            remaining_questions.sort(key=lambda x: x.marks)
+            
+            for question in remaining_questions:
+                if question.marks <= remaining_marks:
+                    selected_questions.append(question)
+                    remaining_marks -= question.marks
+                    
+                    if remaining_marks <= 0:
+                        break
+        
+        # Log final selection
+        if selected_questions:
+            total_selected_marks = sum(q.marks for q in selected_questions)
+            app.logger.info(f"Selected {len(selected_questions)} questions with {total_selected_marks} total marks")
+            return selected_questions
+        
+        app.logger.warning("No questions could be selected with the given criteria")
+        return []

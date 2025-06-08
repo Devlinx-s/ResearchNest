@@ -1,11 +1,12 @@
-from flask import render_template, request, flash, redirect, url_for, send_file, jsonify, session, current_app
-from flask_login import current_user, login_user, logout_user
-from sqlalchemy import desc, func
 from datetime import datetime, timedelta
+from flask import render_template, request, flash, redirect, url_for, send_file, jsonify, session, current_app, json
+from flask_login import current_user, login_user, logout_user
+from sqlalchemy import desc, func, exc
 import os
-import json
 import uuid
+import traceback
 from threading import Thread
+from werkzeug.utils import secure_filename
 
 from app import app, db, socketio
 from auth import require_login, require_admin
@@ -13,8 +14,8 @@ from models import (ResearchPaper, Department, User, DownloadLog, Keyword,
                    QuestionDocument, Question, Subject, Unit, Topic, GeneratedQuestionPaper)
 from forms import (UploadPaperForm, SearchForm, UserProfileForm, LoginForm, SignupForm, 
                   ChangePasswordForm, UploadQuestionDocumentForm, GenerateQuestionPaperForm,
-                  SubjectManagementForm, UnitManagementForm, TopicManagementForm)
-from utils import extract_pdf_metadata, extract_keywords_from_text, save_uploaded_file, format_file_size
+                  SubjectManagementForm, UnitManagementForm, TopicManagementForm, ManualQuestionForm)
+from utils import extract_pdf_metadata, extract_keywords_from_text, save_uploaded_file, format_file_size, allowed_file, generate_unique_filename
 from question_processor import QuestionExtractor, QuestionPaperGenerator
 
 # Dictionary to store extraction status
@@ -192,6 +193,162 @@ def upload_paper():
         return redirect(url_for('paper_detail', id=paper.id))
     
     return render_template('upload.html', form=form)
+
+
+@app.route('/bulk-upload', methods=['POST'])
+@require_login
+def bulk_upload_papers():
+    """Handle bulk upload of multiple research papers with the same metadata."""
+    # Check if files were uploaded
+    if 'files' not in request.files:
+        return jsonify({'success': False, 'error': 'No files uploaded'}), 400
+    
+    files = request.files.getlist('files')
+    if not files or len(files) == 0 or files[0].filename == '':
+        return jsonify({'success': False, 'error': 'No files selected'}), 400
+    
+    # Get form data
+    try:
+        form_data = json.loads(request.form.get('form_data', '{}'))
+        department_id = int(form_data.get('department_id', 0))
+        publication_year = int(form_data.get('publication_year', datetime.now().year))
+        
+        # Get optional fields
+        title = form_data.get('title', '').strip()
+        authors = form_data.get('authors', '').strip()
+        abstract = form_data.get('abstract', '').strip()
+        keywords = form_data.get('keywords', '').strip()
+        
+        # Validate department
+        department = Department.query.get(department_id)
+        if not department:
+            return jsonify({'success': False, 'error': 'Invalid department selected'}), 400
+        
+        # Process each file
+        success_count = 0
+        error_messages = []
+        
+        for i, file in enumerate(files):
+            if file and allowed_file(file.filename):
+                try:
+                    # Save the file
+                    filename, file_path = save_uploaded_file(
+                        file, None, department.name, publication_year
+                    )
+                    
+                    if not filename or not file_path:
+                        error_messages.append(f"{file.filename}: Error saving file")
+                        continue
+                    
+                    # Extract metadata if not provided
+                    file_title = title
+                    file_authors = authors
+                    file_abstract = abstract
+                    file_keywords = keywords
+                    
+                    if not file_title or not file_authors:
+                        extracted_metadata = extract_pdf_metadata(file_path)
+                        
+                        if not file_title:
+                            file_title = extracted_metadata.get('title', '')
+                        if not file_authors:
+                            file_authors = extracted_metadata.get('authors', '')
+                        if not file_abstract:
+                            file_abstract = extracted_metadata.get('abstract', '')
+                        if not file_keywords:
+                            file_keywords = extracted_metadata.get('keywords', '')
+                    
+                    # Extract keywords from abstract if still no keywords
+                    if not file_keywords and file_abstract:
+                        extracted_keywords = extract_keywords_from_text(file_abstract)
+                        file_keywords = ', '.join(extracted_keywords[:5])
+                    
+                    # Validate required fields
+                    if not file_title:
+                        error_messages.append(f"{file.filename}: Could not determine title")
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                        continue
+                        
+                    if not file_authors:
+                        error_messages.append(f"{file.filename}: Could not determine authors")
+                        if os.path.exists(file_path):
+                            os.remove(file_path)
+                        continue
+                    
+                    # Create research paper record
+                    paper = ResearchPaper(
+                        title=file_title,
+                        authors=file_authors,
+                        abstract=file_abstract or '',
+                        keywords=file_keywords or '',
+                        filename=filename,
+                        original_filename=file.filename,
+                        file_path=file_path,
+                        file_size=os.path.getsize(file_path) if os.path.exists(file_path) else 0,
+                        publication_year=publication_year,
+                        department_id=department.id,
+                        uploader_id=current_user.id,
+                        status='approved'  # Auto-approve for simplicity
+                    )
+                    
+                    db.session.add(paper)
+                    
+                    # Update keyword frequency
+                    if file_keywords:
+                        keyword_list = [k.strip().lower() for k in file_keywords.split(',') if k.strip()]
+                        for keyword_text in keyword_list:
+                            keyword = Keyword.query.filter_by(name=keyword_text).first()
+                            if keyword:
+                                keyword.frequency += 1
+                            else:
+                                keyword = Keyword(name=keyword_text, frequency=1)
+                                db.session.add(keyword)
+                    
+                    success_count += 1
+                    
+                    # Commit after each file to ensure we don't lose everything on error
+                    db.session.commit()
+                    
+                except Exception as e:
+                    db.session.rollback()
+                    error_messages.append(f"{file.filename}: {str(e)}")
+                    current_app.logger.error(f"Error processing {file.filename}: {str(e)}\n{traceback.format_exc()}")
+                    
+                    # Clean up file if it was saved but DB operation failed
+                    if 'file_path' in locals() and file_path and os.path.exists(file_path):
+                        try:
+                            os.remove(file_path)
+                        except Exception as e:
+                            current_app.logger.error(f"Error cleaning up file {file_path}: {str(e)}")
+            else:
+                error_messages.append(f"{file.filename if hasattr(file, 'filename') else 'Unknown file'}: Invalid file type")
+        
+        # Prepare response
+        response = {
+            'success': success_count > 0,
+            'processed': success_count,
+            'total': len(files),
+            'errors': error_messages
+        }
+        
+        if success_count > 0:
+            response['message'] = f'Successfully uploaded {success_count} of {len(files)} files.'
+            if error_messages:
+                response['message'] += ' Some files had errors.'
+        else:
+            response['message'] = 'No files were uploaded successfully.'
+        
+        return jsonify(response)
+        
+    except Exception as e:
+        current_app.logger.error(f"Error in bulk upload: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({
+            'success': False,
+            'error': f'An error occurred: {str(e)}',
+            'message': 'Failed to process bulk upload.'
+        }), 500
+
 
 @app.route('/search')
 def search():
@@ -1056,18 +1213,167 @@ def add_topic():
     
     return redirect(url_for('manage_topics'))
 
+# Question Management Routes
+
+@app.route('/manage/questions')
+@require_login
+@require_admin
+def manage_questions():
+    """Manage all questions with filtering and pagination."""
+    page = request.args.get('page', 1, type=int)
+    per_page = 20
+    
+    # Get filter parameters
+    subject_id = request.args.get('subject_id', type=int)
+    unit_id = request.args.get('unit_id', type=int)
+    topic_id = request.args.get('topic_id', type=int)
+    difficulty = request.args.get('difficulty')
+    search = request.args.get('search', '').strip()
+    
+    # Base query
+    query = Question.query
+    
+    # Apply filters
+    if subject_id:
+        query = query.join(Unit).filter(Unit.subject_id == subject_id)
+    if unit_id:
+        query = query.filter(Question.unit_id == unit_id)
+    if topic_id:
+        query = query.filter(Question.topic_id == topic_id)
+    if difficulty:
+        query = query.filter(Question.difficulty_level == difficulty)
+    if search:
+        search = f"%{search}%"
+        query = query.filter(Question.question_text.ilike(search))
+    
+    # Order and paginate
+    questions = query.order_by(Question.created_at.desc()).paginate(page=page, per_page=per_page)
+    
+    # Get filter options
+    subjects = Subject.query.all()
+    units = Unit.query.all() if not subject_id else Unit.query.filter_by(subject_id=subject_id).all()
+    topics = Topic.query.all() if not unit_id else Topic.query.filter_by(unit_id=unit_id).all()
+    
+    return render_template('manage_questions.html', 
+                         questions=questions,
+                         subjects=subjects,
+                         units=units,
+                         topics=topics,
+                         current_filters={
+                             'subject_id': subject_id,
+                             'unit_id': unit_id,
+                             'topic_id': topic_id,
+                             'difficulty': difficulty,
+                             'search': search.strip()
+                         })
+
+
+@app.route('/questions/add', methods=['GET', 'POST'])
+@require_login
+@require_admin
+def add_question():
+    """Add a new question manually."""
+    form = ManualQuestionForm()
+    
+    if form.validate_on_submit():
+        try:
+            # Create new question
+            question = Question(
+                question_text=form.question_text.data,
+                question_type=form.question_type.data,
+                difficulty_level=form.difficulty_level.data,
+                marks=form.marks.data,
+                unit_id=form.unit_id.data,
+                topic_id=form.topic_id.data if form.topic_id.data != 0 else None,
+                has_formula=form.has_formula.data,
+                has_image=form.has_image.data,
+                image_paths=form.image_path.data if form.has_image.data and form.image_path.data else None,
+                document_id=form.document_id.data if form.document_id.data != 0 else None,
+                page_number=form.page_number.data if form.page_number.data else None,
+                question_number=form.question_number.data if form.question_number.data else None
+            )
+            
+            db.session.add(question)
+            db.session.commit()
+            
+            flash('Question added successfully!', 'success')
+            return redirect(url_for('manage_questions'))
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error adding question: {str(e)}")
+            flash('An error occurred while adding the question. Please try again.', 'error')
+    
+    return render_template('add_question.html', form=form)
+
+
+@app.route('/questions/<int:question_id>/edit', methods=['GET', 'POST'])
+@require_login
+@require_admin
+def edit_question(question_id):
+    """Edit an existing question."""
+    question = Question.query.get_or_404(question_id)
+    form = ManualQuestionForm(obj=question)
+    
+    if form.validate_on_submit():
+        try:
+            question.question_text = form.question_text.data
+            question.question_type = form.question_type.data
+            question.difficulty_level = form.difficulty_level.data
+            question.marks = form.marks.data
+            question.unit_id = form.unit_id.data
+            question.topic_id = form.topic_id.data if form.topic_id.data != 0 else None
+            question.has_formula = form.has_formula.data
+            question.has_image = form.has_image.data
+            question.image_paths = form.image_path.data if form.has_image.data and form.image_path.data else None
+            question.document_id = form.document_id.data if form.document_id.data != 0 else None
+            question.page_number = form.page_number.data if form.page_number.data else None
+            question.question_number = form.question_number.data if form.question_number.data else None
+            
+            db.session.commit()
+            flash('Question updated successfully!', 'success')
+            return redirect(url_for('manage_questions'))
+            
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error updating question: {str(e)}")
+            flash('An error occurred while updating the question. Please try again.', 'error')
+    
+    return render_template('edit_question.html', form=form, question=question)
+
+
+@app.route('/questions/<int:question_id>/delete', methods=['POST'])
+@require_login
+@require_admin
+def delete_question(question_id):
+    """Delete a question."""
+    question = Question.query.get_or_404(question_id)
+    
+    try:
+        db.session.delete(question)
+        db.session.commit()
+        flash('Question deleted successfully!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        app.logger.error(f"Error deleting question: {str(e)}")
+        flash('An error occurred while deleting the question. Please try again.', 'error')
+    
+    return redirect(url_for('manage_questions'))
+
+
 # API endpoints for dynamic form updates
 @app.route('/api/units/<int:subject_id>')
 def api_get_units(subject_id):
     """Get units for a subject."""
-    units = Unit.query.filter_by(subject_id=subject_id).order_by(Unit.order_index).all()
-    return jsonify([{'id': unit.id, 'name': unit.name} for unit in units])
+    units = Unit.query.filter_by(subject_id=subject_id).all()
+    return jsonify([{'id': u.id, 'name': u.name} for u in units])
+
 
 @app.route('/api/topics/<int:unit_id>')
 def api_get_topics(unit_id):
     """Get topics for a unit."""
-    topics = Topic.query.filter_by(unit_id=unit_id).order_by(Topic.name).all()
-    return jsonify([{'id': topic.id, 'name': topic.name} for topic in topics])
+    topics = Topic.query.filter_by(unit_id=unit_id).all()
+    return jsonify([{'id': t.id, 'name': t.name} for t in topics])
 
 def save_question_document_file(file, subject, academic_year):
     """Save uploaded question document file."""

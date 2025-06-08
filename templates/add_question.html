@@ -1,0 +1,198 @@
+{% extends "questions/base_manage.html" %}
+
+{% block page_title %}Add New Question{% endblock %}
+
+{% block question_content %}
+<div class="card">
+    <div class="card-header">
+        <h4 class="mb-0">Add New Question</h4>
+    </div>
+    <div class="card-body">
+        <form method="POST" enctype="multipart/form-data">
+            {{ form.hidden_tag() }}
+            
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        {{ form.question_text.label(class="form-label") }}
+                        {{ form.question_text(class="form-control" + (' is-invalid' if form.question_text.errors else ''), rows=4) }}
+                        {% for error in form.question_text.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                        <small class="form-text text-muted">Enter the full question text. You can use basic HTML for formatting.</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        {{ form.question_type.label(class="form-label") }}
+                        {{ form.question_type(class="form-select" + (' is-invalid' if form.question_type.errors else '')) }}
+                        {% for error in form.question_type.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        {{ form.difficulty_level.label(class="form-label") }}
+                        {{ form.difficulty_level(class="form-select" + (' is-invalid' if form.difficulty_level.errors else '')) }}
+                        {% for error in form.difficulty_level.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        {{ form.marks.label(class="form-label") }}
+                        {{ form.marks(class="form-control" + (' is-invalid' if form.marks.errors else '')) }}
+                        {% for error in form.marks.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-4">
+                    <div class="form-group">
+                        {{ form.subject_id.label(class="form-label") }}
+                        {{ form.subject_id(class="form-select" + (' is-invalid' if form.subject_id.errors else '')) }}
+                        {% for error in form.subject_id.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        {{ form.unit_id.label(class="form-label") }}
+                        {{ form.unit_id(class="form-select" + (' is-invalid' if form.unit_id.errors else '')) }}
+                        {% for error in form.unit_id.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="form-group">
+                        {{ form.topic_id.label(class="form-label") }}
+                        {{ form.topic_id(class="form-select" + (' is-invalid' if form.topic_id.errors else '')) }}
+                        {% for error in form.topic_id.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-check form-switch mb-3">
+                        {{ form.has_formula(class="form-check-input" + (' is-invalid' if form.has_formula.errors else '')) }}
+                        {{ form.has_formula.label(class="form-check-label") }}
+                        {% for error in form.has_formula.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                        <small class="form-text text-muted d-block">Check if the question contains mathematical formulas or equations.</small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-check form-switch mb-3">
+                        {{ form.has_image(class="form-check-input" + (' is-invalid' if form.has_image.errors else ''), onchange="toggleImageField()") }}
+                        {{ form.has_image.label(class="form-check-label") }}
+                        {% for error in form.has_image.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3" id="image-upload-row" style="display: none;">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        {{ form.image_path.label(class="form-label") }}
+                        <div class="input-group">
+                            {{ form.image_path(class="form-control" + (' is-invalid' if form.image_path.errors else '')) }}
+                            <button class="btn btn-outline-secondary" type="button" id="browseImage">
+                                <i class="fas fa-folder-open"></i> Browse
+                            </button>
+                            {% for error in form.image_path.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+                        <small class="form-text text-muted">Enter the path to the image or use the browse button to upload.</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        {{ form.document_id.label(class="form-label") }}
+                        {{ form.document_id(class="form-select" + (' is-invalid' if form.document_id.errors else '')) }}
+                        {% for error in form.document_id.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                        <small class="form-text text-muted">Select if this question is from a document.</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        {{ form.page_number.label(class="form-label") }}
+                        {{ form.page_number(class="form-control" + (' is-invalid' if form.page_number.errors else '')) }}
+                        {% for error in form.page_number.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="form-group">
+                        {{ form.question_number.label(class="form-label") }}
+                        {{ form.question_number(class="form-control" + (' is-invalid' if form.question_number.errors else '')) }}
+                        {% for error in form.question_number.errors %}
+                            <div class="invalid-feedback">{{ error }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between mt-4">
+                <a href="{{ url_for('manage_questions') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Cancel
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save"></i> Save Question
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Toggle image upload field based on has_image checkbox
+function toggleImageField() {
+    const imageUploadRow = document.getElementById('image-upload-row');
+    const hasImageCheckbox = document.getElementById('has_image');
+    
+    if (hasImageCheckbox.checked) {
+        imageUploadRow.style.display = 'flex';
+    } else {
+        imageUploadRow.style.display = 'none';
+    }
+}
+
+// Initialize the image field visibility on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleImageField();
+    
+    // Handle the browse image button
+    document.getElementById('browseImage').addEventListener('click', function() {
+        // This would typically open a file browser dialog
+        // For now, we'll just show an alert
+        alert('File browser integration would go here');
+    });
+});
+</script>
+{% endblock %}

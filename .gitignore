@@ -184,3 +184,14 @@ cython_debug/
 # mypy
 .dmypy.json
 dmypy.json
+
+# Ignore test files and local configurations
+*.pyc
+__pycache__/
+instance/
+.venv/
+.env
+*.pdf
+nltk_data/
+*.bak
+*.new

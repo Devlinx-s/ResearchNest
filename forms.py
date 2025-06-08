@@ -1,8 +1,9 @@
+from datetime import datetime
 from flask_wtf import FlaskForm
 from flask_wtf.file import FileField, FileRequired, FileAllowed
-from wtforms import StringField, TextAreaField, SelectField, IntegerField, SubmitField, PasswordField, SelectMultipleField
+from wtforms import StringField, TextAreaField, SelectField, IntegerField, SubmitField, PasswordField, SelectMultipleField, BooleanField
 from wtforms.validators import DataRequired, Length, Email, NumberRange, EqualTo
-from models import Department
+from models import Department, Subject, Unit, Topic, QuestionDocument
 
 
 class LoginForm(FlaskForm):
@@ -28,16 +29,24 @@ class UploadPaperForm(FlaskForm):
     file = FileField('PDF File', validators=[
         FileRequired(),
         FileAllowed(['pdf'], 'Only PDF files are allowed!')
-    ])
-    title = StringField('Title', validators=[Length(max=255)])
-    authors = StringField('Authors', validators=[Length(max=500)])
-    abstract = TextAreaField('Abstract')
-    keywords = StringField('Keywords (comma-separated)', validators=[Length(max=500)])
+    ], render_kw={'multiple': True})
+    is_bulk_upload = SelectField('Upload Type', choices=[
+        (False, 'Single Paper'),
+        (True, 'Bulk Upload')
+    ], default=False, coerce=bool)
+    title = StringField('Title', validators=[Length(max=255)], 
+                       render_kw={'placeholder': 'Will be extracted from PDF if left blank'})
+    authors = StringField('Authors', validators=[Length(max=500)],
+                         render_kw={'placeholder': 'Will be extracted from PDF if available'})
+    abstract = TextAreaField('Abstract', 
+                           render_kw={'placeholder': 'Will be extracted from PDF if available'})
+    keywords = StringField('Keywords (comma-separated)', validators=[Length(max=500)],
+                          render_kw={'placeholder': 'Will be extracted from abstract if left blank'})
     department_id = SelectField('Department', coerce=int, validators=[DataRequired()])
     publication_year = IntegerField('Publication Year', validators=[
         NumberRange(min=1900, max=2030, message="Year must be between 1900 and 2030")
-    ])
-    submit = SubmitField('Upload Paper')
+    ], default=lambda: datetime.now().year)
+    submit = SubmitField('Upload Paper(s)')
     
     def __init__(self, *args, **kwargs):
         super(UploadPaperForm, self).__init__(*args, **kwargs)
@@ -179,3 +188,51 @@ class TopicManagementForm(FlaskForm):
         super(TopicManagementForm, self).__init__(*args, **kwargs)
         from models import Unit
         self.unit_id.choices = [(unit.id, f"{unit.subject.code} - {unit.name}") for unit in Unit.query.all()]
+
+
+class ManualQuestionForm(FlaskForm):
+    """Form for manually adding questions to units and topics."""
+    question_text = TextAreaField('Question Text', validators=[DataRequired()], 
+                                render_kw={'rows': 4, 'placeholder': 'Enter the question text here...'})
+    question_type = SelectField('Question Type', choices=[
+        ('text', 'Text'),
+        ('multiple_choice', 'Multiple Choice'),
+        ('true_false', 'True/False'),
+        ('short_answer', 'Short Answer'),
+        ('problem_solving', 'Problem Solving')
+    ], default='text')
+    difficulty_level = SelectField('Difficulty Level', choices=[
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard')
+    ], default='medium')
+    marks = IntegerField('Marks', validators=[NumberRange(min=1, max=20)], default=1)
+    subject_id = SelectField('Subject', coerce=int, validators=[DataRequired()])
+    unit_id = SelectField('Unit', coerce=int, validators=[DataRequired()])
+    topic_id = SelectField('Topic (Optional)', coerce=int)
+    has_formula = BooleanField('Contains Formulas/Math')
+    has_image = BooleanField('Has Image')
+    image_path = StringField('Image Path (if any)', validators=[Length(max=255)])
+    document_id = SelectField('Document (Optional)', coerce=int)
+    page_number = IntegerField('Page Number (if from document)', validators=[NumberRange(min=1)])
+    question_number = StringField('Question Number (if from document)', validators=[Length(max=10)])
+    submit = SubmitField('Add Question')
+    
+    def __init__(self, *args, **kwargs):
+        super(ManualQuestionForm, self).__init__(*args, **kwargs)
+        # Set up dynamic choices
+        self.subject_id.choices = [(0, 'Select Subject')] + [(subj.id, f"{subj.code} - {subj.name}") for subj in Subject.query.all()]
+        self.unit_id.choices = [(0, 'Select Unit')] + [(unit.id, unit.name) for unit in Unit.query.all()]
+        self.topic_id.choices = [(0, 'Select Topic (Optional)')] + [(topic.id, topic.name) for topic in Topic.query.all()]
+        self.document_id.choices = [(0, 'None')] + [(doc.id, doc.title) for doc in QuestionDocument.query.all()]
+    
+    def validate(self, extra_validators=None):
+        if not super().validate():
+            return False
+            
+        # If has_image is True, image_path is required
+        if self.has_image.data and not self.image_path.data:
+            self.image_path.errors.append('Image path is required when "Has Image" is checked')
+            return False
+            
+        return True

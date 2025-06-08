@@ -16,22 +16,103 @@
                     <form method="POST" enctype="multipart/form-data" id="uploadForm">
                         {{ form.hidden_tag() }}
                         
+                        <!-- Paper Details (Collapsible) -->
+                        <div class="mb-4" id="paperDetailsSection">
+                            <button class="btn btn-link p-0 mb-3" type="button" data-bs-toggle="collapse" data-bs-target="#paperDetails" aria-expanded="false" aria-controls="paperDetails">
+                                <i data-feather="edit-2" class="me-1"></i>Edit paper details (optional)
+                            </button>
+                            <div class="collapse" id="paperDetails">
+                                <div class="mb-4">
+                                    <label for="{{ form.is_bulk_upload.id }}" class="form-label">
+                                        <i data-feather="upload" class="me-1"></i>Upload Type
+                                    </label>
+                                    {{ form.is_bulk_upload(class="form-select") }}
+                                    <small class="text-muted">Bulk upload will use the same metadata for all files</small>
+                                </div>
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.title.id }}" class="form-label">Title</label>
+                                        {{ form.title(class="form-control" + (" is-invalid" if form.title.errors else ""), placeholder="Will be auto-extracted if left blank") }}
+                                        {% if form.title.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.title.errors %}{{ error }}{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.authors.id }}" class="form-label">Authors</label>
+                                        {{ form.authors(class="form-control" + (" is-invalid" if form.authors.errors else ""), placeholder="Will be auto-extracted if left blank") }}
+                                        {% if form.authors.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.authors.errors %}{{ error }}{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.department_id.id }}" class="form-label">Department *</label>
+                                        {{ form.department_id(class="form-select" + (" is-invalid" if form.department_id.errors else "")) }}
+                                        {% if form.department_id.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.department_id.errors %}{{ error }}{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="{{ form.publication_year.id }}" class="form-label">Publication Year</label>
+                                        {{ form.publication_year(class="form-control" + (" is-invalid" if form.publication_year.errors else ""), placeholder="Current year if left blank") }}
+                                        {% if form.publication_year.errors %}
+                                            <div class="invalid-feedback">
+                                                {% for error in form.publication_year.errors %}{{ error }}{% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.keywords.id }}" class="form-label">Keywords</label>
+                                    {{ form.keywords(class="form-control" + (" is-invalid" if form.keywords.errors else ""), placeholder="Comma-separated keywords (will be auto-extracted if left blank)") }}
+                                    <div class="form-text">Separate multiple keywords with commas</div>
+                                    {% if form.keywords.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.keywords.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="{{ form.abstract.id }}" class="form-label">Abstract</label>
+                                    {{ form.abstract(class="form-control" + (" is-invalid" if form.abstract.errors else ""), rows="4", placeholder="Abstract of the research paper (will be auto-extracted if available)") }}
+                                    {% if form.abstract.errors %}
+                                        <div class="invalid-feedback">
+                                            {% for error in form.abstract.errors %}{{ error }}{% endfor %}
+                                        </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        
                         <!-- File Upload -->
                         <div class="mb-4">
                             <label for="{{ form.file.id }}" class="form-label">
-                                <i data-feather="file" class="me-1"></i>PDF File *
+                                <i data-feather="file" class="me-1"></i>PDF File(s) *
                             </label>
                             <div class="upload-area border rounded p-4 text-center" id="uploadArea">
-                                {{ form.file(class="form-control", style="display: none;", accept=".pdf") }}
+                                {{ form.file(class="form-control", style="display: none;", accept=".pdf", multiple=true) }}
                                 <div id="uploadPrompt">
                                     <i data-feather="upload-cloud" class="display-4 text-muted mb-2"></i>
-                                    <p class="mb-2">Drag and drop your PDF file here, or click to browse</p>
-                                    <small class="text-muted">Maximum file size: 20MB • Only PDF files allowed</small>
+                                    <p class="mb-2">Drag and drop your PDF file(s) here, or click to browse</p>
+                                    <small class="text-muted">Maximum file size: 20MB each • Only PDF files allowed</small>
                                 </div>
                                 <div id="fileInfo" style="display: none;">
-                                    <i data-feather="file-text" class="text-success me-2"></i>
-                                    <span id="fileName"></span>
-                                    <button type="button" class="btn btn-sm btn-outline-danger ms-2" id="removeFile">Remove</button>
+                                    <div id="fileList" class="mb-2"></div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" id="removeFiles">
+                                        <i data-feather="trash-2" class="me-1"></i>Remove All
+                                    </button>
                                 </div>
                             </div>
                             {% if form.file.errors %}
@@ -45,10 +126,13 @@
 
                         <!-- Progress Bar -->
                         <div class="mb-3" id="progressContainer" style="display: none;">
-                            <div class="progress">
+                            <div class="progress mb-2">
                                 <div class="progress-bar" role="progressbar" style="width: 0%"></div>
                             </div>
-                            <small class="text-muted mt-1">Uploading and extracting metadata...</small>
+                            <div class="d-flex justify-content-between">
+                                <small class="text-muted" id="progressStatus">Preparing upload...</small>
+                                <small class="text-muted" id="progressCount">0/0 files</small>
+                            </div>
                         </div>
 
                         <!-- Metadata Fields -->

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block title %}{% block page_title %}{% endblock %} - Question Bank{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-3">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Question Bank</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    <a href="{{ url_for('manage_questions') }}" 
+                       class="list-group-item list-group-item-action {% if request.endpoint == 'manage_questions' %}active{% endif %}">
+                        All Questions
+                    </a>
+                    <a href="{{ url_for('add_question') }}" 
+                       class="list-group-item list-group-item-action {% if request.endpoint == 'add_question' %}active{% endif %}">
+                        Add New Question
+                    </a>
+                    <a href="{{ url_for('question_documents') }}" 
+                       class="list-group-item list-group-item-action">
+                        Question Documents
+                    </a>
+                    <a href="{{ url_for('manage_subjects') }}" 
+                       class="list-group-item list-group-item-action">
+                        Manage Subjects
+                    </a>
+                    <a href="{{ url_for('manage_units') }}" 
+                       class="list-group-item list-group-item-action">
+                        Manage Units
+                    </a>
+                    <a href="{{ url_for('manage_topics') }}" 
+                       class="list-group-item list-group-item-action">
+                        Manage Topics
+                    </a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-9">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            {% block question_content %}{% endblock %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Dynamic form updates
+$(document).ready(function() {
+    // Update units when subject changes
+    $('#subject_id').on('change', function() {
+        var subjectId = $(this).val();
+        if (subjectId) {
+            $.getJSON(`/api/units/${subjectId}`, function(units) {
+                var unitSelect = $('#unit_id');
+                unitSelect.empty().append('<option value="0">Select Unit</option>');
+                $.each(units, function(index, unit) {
+                    unitSelect.append(`<option value="${unit.id}">${unit.name}</option>`);
+                });
+                // Trigger change to update topics
+                unitSelect.trigger('change');
+            });
+        } else {
+            $('#unit_id').empty().append('<option value="0">Select Unit</option>');
+            $('#topic_id').empty().append('<option value="0">Select Topic (Optional)</option>');
+        }
+    });
+
+    // Update topics when unit changes
+    $('#unit_id').on('change', function() {
+        var unitId = $(this).val();
+        if (unitId) {
+            $.getJSON(`/api/topics/${unitId}`, function(topics) {
+                var topicSelect = $('#topic_id');
+                topicSelect.empty().append('<option value="0">Select Topic (Optional)</option>');
+                $.each(topics, function(index, topic) {
+                    topicSelect.append(`<option value="${topic.id}">${topic.name}</option>`);
+                });
+            });
+        } else {
+            $('#topic_id').empty().append('<option value="0">Select Topic (Optional)</option>');
+        }
+    });
+
+    // Toggle image path field
+    $('#has_image').on('change', function() {
+        if ($(this).is(':checked')) {
+            $('#image_path').closest('.form-group').show();
+        } else {
+            $('#image_path').closest('.form-group').hide();
+        }
+    }).trigger('change');
+});
+</script>
+{% endblock %}
