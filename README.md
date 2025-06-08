@@ -2,103 +2,189 @@
 
 A comprehensive Flask-based platform for educational institutions to manage question banks, generate custom question papers, and organize academic content by subjects, units, and topics.
 
+![ResearchNest Banner](https://via.placeholder.com/1200x400/3498db/ffffff?text=ResearchNest+Platform)
+
+## ✨ Key Features
+
+### 📚 Question Bank Management
+- **Document Processing**: Upload and process PDF question papers
+- **Smart Extraction**: Automatically extract questions with metadata
+- **Categorization**: Organize by department, subject, unit, and topic
+- **Difficulty Classification**: Auto-classify questions by difficulty level
+
+### 📝 Intelligent Paper Generation
+- **Custom Papers**: Generate question papers based on criteria
+- **Smart Distribution**: Control difficulty levels and mark allocation
+- **Multiple Formats**: Support for various question types (MCQ, descriptive, etc.)
+- **Branded Output**: Professional PDF generation with institutional branding
+
+### 🏛️ Academic Organization
+- **Structured Hierarchy**: Departments → Subjects → Units → Topics
+- **Advanced Search**: Find questions by multiple criteria
+- **User Management**: Role-based access control
+- **Analytics Dashboard**: Track usage and generate reports
+
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.11 or higher
+- Python 3.11+
 - pip (Python package manager)
 - Git (for cloning the repository)
+- SQLite (included) or PostgreSQL
 
-### 1. Clone the Repository
-```bash
-git clone https://github.com/Devlinx-s/ResearchNest.git
-cd ResearchNest
-```
+### Installation
 
-### 2. Set Up Virtual Environment
-```bash
-# Create a virtual environment
-python -m venv venv
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/Devlinx-s/ResearchNest.git
+   cd ResearchNest
+   ```
 
-# Activate the virtual environment
-# On Linux/Mac:
-source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
-```
+2. **Set Up Virtual Environment**
+   ```bash
+   # Create and activate virtual environment
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
 
-### 3. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
+3. **Install Dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-### 4. Configure Environment Variables
-Create a `.env` file in the project root with the following content:
-```
-# Database Configuration
-DATABASE_URI=sqlite:///researchnest.db
+4. **Configuration**
+   Create a `.env` file in the project root:
+   ```env
+   # Application
+   FLASK_APP=app.py
+   FLASK_ENV=development
+   SECRET_KEY=your-secret-key-here
+   
+   # Database
+   DATABASE_URI=sqlite:///researchnest.db
+   
+   # File Uploads
+   UPLOAD_FOLDER=uploads
+   MAX_CONTENT_LENGTH=20971520  # 20MB
+   
+   # Email (optional)
+   MAIL_SERVER=your-smtp-server.com
+   MAIL_PORT=587
+   MAIL_USE_TLS=True
+   MAIL_USERNAME=your-email@example.com
+   MAIL_PASSWORD=your-email-password
+   ```
 
-# Flask Configuration
-SESSION_SECRET=your-secret-key-here
-FLASK_ENV=development
-FLASK_DEBUG=True
+5. **Initialize Database**
+   ```bash
+   flask db upgrade
+   ```
 
-# File Upload Configuration
-UPLOAD_FOLDER=uploads
-MAX_CONTENT_LENGTH=20971520  # 20MB
-```
+6. **Run the Application**
+   ```bash
+   flask run
+   ```
 
-### 5. Initialize the Database
-```bash
-# Create database tables
-python -c "from app import app, db; with app.app_context(): db.create_all()"
-```
+7. **Access the System**
+   - Open your browser: `http://localhost:5000`
+   - **Admin Login**: `admin@researchnest.local` / `admin123`
+   - **Instructor/Student**: Register with your institutional email
 
-### 6. Run the Application
-```bash
-python main.py
-```
+## 📚 Documentation
 
-### 7. Access the System
-- Open your browser and go to: `http://localhost:5000`
-- **Admin login:** `admin@researchnest.local` (password: admin123)
-- **Student login:** Any email (auto-creates account on first login)
-
-## ✨ Core Features
-
-### Question Bank Management
-- **Document Upload**: Upload question papers, assignments, and quizzes
-- **Automatic Question Extraction**: Extract questions from PDFs with metadata
-- **Question Categorization**: Organize by subject, unit, and topic
-- **Difficulty Level**: Tag questions by difficulty (easy, medium, hard)
-
-### Paper Generation
-- **Custom Paper Creation**: Generate question papers based on criteria
-- **Smart Distribution**: Control difficulty levels and mark distribution
-- **Multiple Question Types**: Support for text, image, and formula-based questions
-- **Export Options**: Download generated papers in various formats
-
-### Academic Organization
-- **Subject Hierarchy**: Structured by departments → subjects → units → topics
-- **Search & Filter**: Find questions by multiple criteria
-- **User Management**: Role-based access control (Admin/Instructor/Student)
-- **Analytics**: Track question usage and paper generation history
-
-## 🛠️ Technology Stack
-
-- **Backend**: Python 3.11+, Flask 3.1, SQLAlchemy
-- **Database**: SQLite (default) or PostgreSQL
-- **PDF Processing**: PyMuPDF (fitz), OpenCV for image processing
-- **NLP**: NLTK for text processing and analysis
-- **Frontend**: Bootstrap 5, Chart.js, Feather Icons
-- **AI/ML**: scikit-learn for text similarity and classification
-
-## 📂 Project Structure
+### Project Structure
 
 ```
 ResearchNest/
-├── app.py                   # Flask application setup
-├── auth.py                  # Authentication and authorization
+├── app/                      # Application package
+│   ├── __init__.py          # App factory and extensions
+│   ├── models/              # Database models
+│   ├── routes/              # Application routes
+│   ├── static/              # Static files (CSS, JS, images)
+│   │   ├── css/
+│   │   ├── js/
+│   │   └── img/
+│   └── templates/           # Jinja2 templates
+│       ├── auth/            # Authentication templates
+│       ├── admin/           # Admin interface templates
+│       └── questions/       # Question management templates
+├── migrations/              # Database migrations
+├── tests/                   # Test files
+├── uploads/                 # User uploads
+├── .env.example            # Example environment variables
+├── config.py               # Configuration settings
+├── requirements.txt        # Python dependencies
+└── README.md               # This file
+```
+
+### Database Models
+
+#### Core Models
+- **User**: System users (Admin, Instructor, Student)
+- **Department**: Academic departments
+- **Subject**: Courses within departments
+- **Unit**: Course units
+- **Topic**: Specific topics within units
+- **Question**: Individual questions with metadata
+- **QuestionDocument**: Source documents for questions
+- **GeneratedQuestionPaper**: Generated exam papers
+
+### API Endpoints
+
+#### Authentication
+- `POST /login` - User login
+- `POST /register` - New user registration
+- `POST /logout` - User logout
+
+#### Question Management
+- `GET /questions` - List all questions
+- `POST /questions` - Create new question
+- `GET /questions/<id>` - Get question details
+- `PUT /questions/<id>` - Update question
+- `DELETE /questions/<id>` - Delete question
+
+#### Paper Generation
+- `POST /generate-paper` - Generate new question paper
+- `GET /generated-papers` - List generated papers
+- `GET /generated-papers/<id>/download` - Download paper
+
+## 🛠️ Development
+
+### Running Tests
+```bash
+pytest
+```
+
+### Creating Migrations
+```bash
+flask db migrate -m "Migration message"
+flask db upgrade
+```
+
+### Code Style
+- Follow PEP 8 guidelines
+- Use type hints for better code clarity
+- Write docstrings for all public methods
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with ❤️ for educational institutions
+- Special thanks to all contributors and the open-source community
+
+## 📧 Contact
+
+For support or queries, please email: support@researchnest.local
+
+---
+
+<div align="center">
+  <p>Made with ❤️ by the ResearchNest Team</p>
+  <p>© 2025 ResearchNest. All rights reserved.</p>
+</div>
 ├── models.py                # Database models (User, Subject, Unit, Topic, Question, etc.)
 ├── question_processor.py    # Core question extraction and paper generation logic
 ├── routes.py                # Application routes and views
