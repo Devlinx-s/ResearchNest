@@ -252,3 +252,4 @@ class GeneratedQuestionPaper(db.Model):
     
     # Relationships
     generator = db.relationship('User', backref='generated_papers', lazy=True)
+    subject = db.relationship('Subject', backref='generated_papers', lazy=True)

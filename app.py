@@ -244,6 +244,18 @@ def initialize_database():
         db.session.rollback()
         logging.error(f"Database initialization failed: {e}")
 
+# Add custom Jinja2 filters
+@app.template_filter('from_json')
+def from_json_filter(value):
+    """Convert a JSON string to a Python object."""
+    import json
+    if not value:
+        return []
+    try:
+        return json.loads(value)
+    except (TypeError, json.JSONDecodeError):
+        return []
+
 # Import routes after app initialization
 from routes import *  # noqa: E402, F403
 from auth import *  # noqa: E402, F403

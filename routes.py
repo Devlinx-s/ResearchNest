@@ -16,7 +16,7 @@ from forms import (UploadPaperForm, SearchForm, UserProfileForm, LoginForm, Sign
                   ChangePasswordForm, UploadQuestionDocumentForm, GenerateQuestionPaperForm,
                   SubjectManagementForm, UnitManagementForm, TopicManagementForm, ManualQuestionForm)
 from utils import extract_pdf_metadata, extract_keywords_from_text, save_uploaded_file, format_file_size, allowed_file, generate_unique_filename
-from question_processor import QuestionExtractor, QuestionPaperGenerator
+from question_processor import QuestionExtractor
 
 # Dictionary to store extraction status
 extraction_status_dict = {}
@@ -1046,7 +1046,7 @@ def generate_question_paper():
     
     if form.validate_on_submit():
         # Generate question paper
-        generator = QuestionPaperGenerator()
+        extractor = QuestionExtractor()
         
         difficulty_distribution = {
             'easy': form.easy_percentage.data / 100.0,
@@ -1054,7 +1054,7 @@ def generate_question_paper():
             'hard': form.hard_percentage.data / 100.0
         }
         
-        result = generator.generate_question_paper(
+        result = extractor.generate_question_paper(
             subject_id=form.subject_id.data,
             unit_ids=form.unit_ids.data if form.unit_ids.data else None,
             topic_ids=form.topic_ids.data if form.topic_ids.data else None,

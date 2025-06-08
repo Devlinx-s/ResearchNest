@@ -774,17 +774,43 @@ class QuestionExtractor:
         except:
             return 0
 
-class QuestionPaperGenerator:
     def __init__(self):
         pass
     
     def generate_question_paper(self, subject_id, unit_ids=None, topic_ids=None, 
-                              total_marks=100, difficulty_distribution=None):
-        """Generate a question paper based on specified criteria."""
-        from reportlab.lib.pagesizes import letter, A4
-        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
+                          total_marks=100, difficulty_distribution=None):
+        """Generate a question paper based on specified criteria with ResearchNest signature and watermark."""
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import (
+            SimpleDocTemplate, Paragraph, Spacer, Image, 
+            PageBreak, Table, TableStyle, PageTemplate, Frame
+        )
         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-        from reportlab.lib.units import inch
+        from reportlab.lib.units import inch, cm
+        from reportlab.lib import colors
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+        from datetime import datetime
+        import os
+        import sys
+        from flask import current_app
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        
+        # Define a fallback static folder path if not in app context
+        try:
+            static_folder = current_app.static_folder
+        except RuntimeError:
+            # If we're not in an app context, use a relative path
+            static_folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'app', 'static')
+        
+        # Register font for watermark
+        try:
+            pdfmetrics.registerFont(TTFont('Roboto-Light', 'app/static/fonts/Roboto-Light.ttf'))
+            pdfmetrics.registerFont(TTFont('Roboto-Bold', 'app/static/fonts/Roboto-Bold.ttf'))
+        except:
+            # Fallback to default font if custom font not available
+            pass
         
         # Default difficulty distribution
         if not difficulty_distribution:
@@ -799,44 +825,273 @@ class QuestionPaperGenerator:
             return None
         
         # Generate PDF
-        filename = f"question_paper_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-        file_path = os.path.join(app.config.get('UPLOAD_FOLDER', 'uploads'), 'generated', filename)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f'ResearchNest_QuestionPaper_{timestamp}.pdf'
+        file_path = os.path.join(current_app.config['UPLOAD_FOLDER'], 'question_papers', filename)
+        
+        # Ensure directory exists
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
-        # Create PDF document
-        doc = SimpleDocTemplate(file_path, pagesize=A4)
-        story = []
+        # Define styles
         styles = getSampleStyleSheet()
         
-        # Title
+        # Add custom styles
         title_style = ParagraphStyle(
-            'CustomTitle',
+            'Title',
             parent=styles['Heading1'],
-            fontSize=16,
-            spaceAfter=30,
-            alignment=1  # Center alignment
+            fontSize=18,
+            spaceAfter=12,
+            alignment=1,  # Center aligned
+            fontName='Helvetica-Bold',
+            textColor=colors.HexColor('#2c3e50')
         )
         
-        subject = Subject.query.get(subject_id)
-        story.append(Paragraph(f"{subject.name} - Question Paper", title_style))
+        subtitle_style = ParagraphStyle(
+            'Subtitle',
+            parent=styles['Heading2'],
+            fontSize=14,
+            spaceAfter=20,
+            alignment=1,
+            fontName='Helvetica',
+            textColor=colors.HexColor('#34495e')
+        )
+        
+        question_style = ParagraphStyle(
+            'Question',
+            parent=styles['Normal'],
+            fontSize=11,
+            spaceAfter=12,
+            leading=14,
+            fontName='Helvetica',
+            textColor=colors.HexColor('#2c3e50')
+        )
+        
+        instruction_style = ParagraphStyle(
+            'Instruction',
+            parent=styles['Italic'],
+            fontSize=10,
+            spaceAfter=16,
+            leading=12,
+            fontName='Helvetica-Oblique',
+            textColor=colors.HexColor('#7f8c8d')
+        )
+        
+        # Create a custom header and footer function with watermark
+        def add_header_footer(canvas, doc):
+            canvas.saveState()
+            
+            # Add watermark
+            canvas.saveState()
+            canvas.setFont('Helvetica', 60)
+            # Using a very light gray color instead of alpha transparency
+            canvas.setFillColor(colors.HexColor('#f0f0f0'))
+            canvas.translate(A4[0]/2, A4[1]/2)
+            canvas.rotate(45)
+            canvas.drawCentredString(0, 0, "RESEARCHNEST")
+            canvas.restoreState()
+            
+            # Draw header line
+            canvas.setStrokeColor(colors.HexColor('#3498db'))
+            canvas.setLineWidth(1)
+            canvas.line(50, A4[1] - 60, A4[0] - 50, A4[1] - 60)
+            
+            # Add header
+            canvas.setFont('Helvetica-Bold', 10)
+            canvas.setFillColor(colors.HexColor('#3498db'))
+            canvas.drawString(50, A4[1] - 45, "RESEARCHNEST - ACADEMIC QUESTION PAPER")
+            
+            # Add page number
+            page_num = canvas.getPageNumber()
+            canvas.drawRightString(A4[0] - 50, A4[1] - 45, f"Page {page_num}")
+            
+            # Draw footer line
+            canvas.setStrokeColor(colors.HexColor('#e74c3c'))
+            canvas.setLineWidth(0.5)
+            canvas.line(50, 50, A4[0] - 50, 50)
+            
+            # Add footer text
+            canvas.setFont('Helvetica', 8)
+            canvas.setFillColor(colors.HexColor('#7f8c8d'))
+            
+            # Left side - Copyright notice
+            current_year = datetime.now().year
+            text = f"© {current_year} ResearchNest. All rights reserved."
+            canvas.drawString(50, 35, text)
+            
+            # Right side - Generation timestamp
+            text = f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+            text_width = canvas.stringWidth(text, 'Helvetica', 8)
+            canvas.drawString(A4[0] - 50 - text_width, 35, text)
+            
+            # Add ResearchNest logo or text fallback
+            logo_path = os.path.join(static_folder, 'img', 'researchnest-logo.png')
+            logo_found = False
+            
+            # Try to load the logo if it exists
+            if os.path.exists(logo_path):
+                try:
+                    logo = Image(logo_path, width=2*cm, height=0.7*cm)
+                    logo.drawOn(canvas, (A4[0] - 2*cm)/2, 35)  # Center the logo
+                    logo_found = True
+                except Exception as e:
+                    app.logger.warning(f"Could not add logo: {str(e)}")
+            
+            # If logo not found or failed to load, use text fallback
+            if not logo_found:
+                try:
+                    canvas.setFont('Helvetica-Bold', 12)
+                    canvas.setFillColor(colors.HexColor('#3498db'))
+                    text = "RESEARCHNEST"
+                    text_width = canvas.stringWidth(text, 'Helvetica-Bold', 12)
+                    canvas.drawString((A4[0] - text_width)/2, 35, text)
+                except Exception as e:
+                    app.logger.warning(f"Could not add text fallback: {str(e)}")
+            
+            canvas.restoreState()
+        
+        # Get subject information for document metadata
+        subject_name = 'General'
+        try:
+            subject = Subject.query.get(subject_id)
+            if subject:
+                subject_name = subject.name
+        except Exception as e:
+            app.logger.warning(f"Could not load subject: {str(e)}")
+        
+        # Create document with custom header and footer
+        doc = SimpleDocTemplate(
+            file_path,
+            pagesize=A4,
+            rightMargin=50,
+            leftMargin=50,
+            topMargin=80,  # More space for header
+            bottomMargin=70,  # More space for footer
+            title=f"ResearchNest Question Paper - {timestamp}",
+            author="ResearchNest Platform",
+            subject=f"Generated Question Paper - {subject_name}",
+            creator="ResearchNest Platform",
+            producer="ResearchNest"
+        )
+        
+        # Override build method to include header and footer on all pages
+        def build_with_watermark(story, **kwargs):
+            return SimpleDocTemplate.build(
+                doc, 
+                story, 
+                onFirstPage=add_header_footer, 
+                onLaterPages=add_header_footer, 
+                **kwargs
+            )
+            
+        doc.build = build_with_watermark
+        
+        # Start building the document
+        story = []
+        
+        # Add title and subtitle
+        story.append(Paragraph("RESEARCHNEST", title_style))
+        story.append(Paragraph("Question Paper", subtitle_style))
+        
+        # Add a decorative line
+        story.append(Spacer(1, 12))
+        story.append(Paragraph("<b><font color='#e74c3c'>" + "•"*50 + "</font></b>", styles['Normal']))
         story.append(Spacer(1, 20))
         
-        # Instructions
-        instructions = """
-        <b>Instructions:</b><br/>
-        1. Answer all questions.<br/>
-        2. Write your answers clearly.<br/>
-        3. Time allowed: 3 hours.<br/>
-        4. Total marks: {}<br/>
-        """.format(total_marks)
-        story.append(Paragraph(instructions, styles['Normal']))
+        # Add paper metadata in a table for better organization
+        subject = Subject.query.get(subject_id)
+        meta_data = []
+        
+        if subject:
+            meta_data.append(['<b>Subject</b>', subject.name])
+            
+            # Add units if specified
+            if unit_ids:
+                units = Unit.query.filter(Unit.id.in_(unit_ids)).all()
+                if units:
+                    unit_names = ", ".join([unit.name for unit in units])
+                    meta_data.append(['<b>Unit(s)</b>', unit_names])
+            
+            # Add topics if specified
+            if topic_ids:
+                topics = Topic.query.filter(Topic.id.in_(topic_ids)).all()
+                if topics:
+                    topic_names = ", ".join([topic.name for topic in topics])
+                    meta_data.append(['<b>Topic(s)</b>', topic_names])
+        
+        # Add paper details
+        meta_data.extend([
+            ['<b>Total Marks</b>', str(total_marks)],
+            ['<b>Time Allowed</b>', '3 hours'],
+        ])
+        
+        # Add difficulty distribution if available
+        if difficulty_distribution:
+            difficulty_text = ", ".join([f"{k.title()}: {v*100:.0f}%" for k, v in difficulty_distribution.items()])
+            meta_data.append(['<b>Difficulty</b>', difficulty_text])
+        
+        # Create and style the table
+        meta_table = Table(meta_data, colWidths=[100, 400], hAlign='CENTER')
+        meta_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),  # Right align labels
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),   # Left align values
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),
+            ('LEFTPADDING', (0, 0), (0, -1), 0),
+            ('RIGHTPADDING', (1, 0), (1, -1), 0),
+        ]))
+        
+        story.append(meta_table)
+        story.append(Spacer(1, 30))
+        
+        # Add instructions with better formatting
+        instructions = [
+            "<b>GENERAL INSTRUCTIONS:</b>",
+            "1. All questions are compulsory.",
+            "2. Write your answers clearly and legibly.",
+            "3. Figures to the right indicate full marks.",
+            "4. Assume suitable data if necessary.",
+            "5. Use of non-programmable scientific calculator is allowed.",
+            "6. Draw neat diagrams wherever necessary.",
+            f"7. Total time: 3 hours | Total marks: {total_marks}"
+        ]
+        
+        instruction_paragraphs = []
+        for line in instructions:
+            if line.startswith("<b>"):
+                instruction_paragraphs.append(Paragraph(f"<b>{line[3:-4].upper()}</b>", instruction_style))
+            else:
+                instruction_paragraphs.append(Paragraph(line, instruction_style))
+        
+        story.extend(instruction_paragraphs)
+        story.append(PageBreak())  # Start questions on a new page
+        
+        # Add questions section header
+        story.append(Paragraph("<b>SECTION - A</b> (Answer All Questions)", styles['Heading2']))
         story.append(Spacer(1, 20))
         
         # Questions
         for i, question in enumerate(questions, 1):
-            # Question text
-            question_text = f"<b>{i}. {question.question_text}</b> ({question.marks} marks)"
-            story.append(Paragraph(question_text, styles['Normal']))
+            # Create a styled question number and text
+            question_text = f"<b>Q.{i}</b> {question.question_text} <font color='#7f8c8d'><i>[{question.marks} Mark{'s' if question.marks > 1 else ''}]</i></font>"
+            
+            # Add difficulty indicator
+            if hasattr(question, 'difficulty_level') and question.difficulty_level:
+                diff_color = {
+                    'easy': '#27ae60',
+                    'medium': '#f39c12',
+                    'hard': '#e74c3c'
+                }.get(question.difficulty_level.lower(), '#7f8c8d')
+                question_text += f" <font color='{diff_color}'>({question.difficulty_level.title()})</font>"
+            
+            # Add the question to the story
+            story.append(Paragraph(question_text, question_style))
+            
+            # Add space for answer if needed
+            story.append(Spacer(1, 10))
             
             # Add images if present
             if question.has_image and question.image_paths:
@@ -844,19 +1099,44 @@ class QuestionPaperGenerator:
                     image_paths = json.loads(question.image_paths)
                     for img_path in image_paths:
                         if os.path.exists(img_path):
+                            # Try to get image dimensions and maintain aspect ratio
+                            try:
+                                from PIL import Image as PILImage
+                                with PILImage.open(img_path) as img:
+                                    width, height = img.size
+                                    aspect_ratio = width / height
+                                    max_width = 4.5 * inch
+                                    display_width = min(max_width, width / 2)
+                                    display_height = display_width / aspect_ratio
+                                    
+                                    # Ensure the image isn't too tall
+                                    if display_height > 6 * inch:
+                                        display_height = 6 * inch
+                                        display_width = display_height * aspect_ratio
+                                    
+                                    img = Image(img_path, width=display_width, height=display_height)
+                                    story.append(img)
+                            except Exception as e:
+                                app.logger.warning(f"Could not resize image: {str(e)}")
+                                img = Image(img_path, width=4*inch, height=3*inch)
+                                story.append(img)
+                            
                             story.append(Spacer(1, 10))
-                            img = Image(img_path, width=4*inch, height=3*inch)
-                            story.append(img)
-                except:
-                    pass
+                except Exception as e:
+                    app.logger.warning(f"Error processing image: {str(e)}")
             
+            # Add space between questions
             story.append(Spacer(1, 20))
+            
+            # Add page break every 3 questions to prevent crowding
+            if i % 3 == 0 and i < len(questions):
+                story.append(PageBreak())
+                story.append(Spacer(1, 20))
         
         # Build PDF
         doc.build(story)
         
         return filename, file_path
-    
     def select_questions(self, subject_id, unit_ids, topic_ids, total_marks, difficulty_distribution):
         """Select questions based on criteria."""
         from sqlalchemy import or_
