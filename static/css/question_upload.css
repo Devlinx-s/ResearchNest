@@ -1,0 +1,27 @@
+/* Styles for question upload page */
+
+/* Upload area styling */
+.upload-area {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.upload-area:hover {
+    border-color: #0d6efd !important;
+    background-color: rgba(13, 110, 253, 0.05) !important;
+}
+
+/* Loading spinner */
+.spinner-border {
+    margin-right: 0.5rem;
+}
+
+/* Hide default file input */
+.hidden-file-input {
+    position: absolute;
+    width: 0.1px;
+    height: 0.1px;
+    opacity: 0;
+    overflow: hidden;
+    z-index: -1;
+}

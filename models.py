@@ -133,33 +133,73 @@ class Topic(db.Model):
 
 class QuestionDocument(db.Model):
     __tablename__ = 'question_documents'
+    
+    # Status constants
+    STATUS_PENDING = 'pending'
+    STATUS_PROCESSING = 'processing'
+    STATUS_EXTRACTING = 'extracting'
+    STATUS_SAVING = 'saving'
+    STATUS_COMPLETED = 'completed'
+    STATUS_FAILED = 'failed'
+    
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(255), nullable=False)
     filename = db.Column(db.String(255), nullable=False)
     original_filename = db.Column(db.String(255), nullable=False)
     file_path = db.Column(db.String(500), nullable=False)
     file_size = db.Column(db.Integer)
-    
-    # Document metadata
     subject_id = db.Column(db.Integer, db.ForeignKey('subjects.id'), nullable=False)
-    document_type = db.Column(db.String(50), default='question_paper')  # question_paper, assignment, quiz
+    document_type = db.Column(db.String(50), default='question_paper')
     academic_year = db.Column(db.String(20))
     semester = db.Column(db.String(20))
-    
-    # Processing status
-    status = db.Column(db.String(20), default='pending')  # pending, processing, completed, failed
-    extraction_status = db.Column(db.String(20), default='pending')  # pending, extracting, completed, failed
+    status = db.Column(db.String(20), default='pending')
+    extraction_status = db.Column(db.String(20), default=STATUS_PENDING)
+    extraction_progress = db.Column(db.Integer, default=0)  # 0-100
+    extraction_message = db.Column(db.String(255), nullable=True)
     total_questions = db.Column(db.Integer, default=0)
-    
-    # Timestamps
+    total_pages = db.Column(db.Integer, default=0)
+    processed_pages = db.Column(db.Integer, default=0)
     uploaded_at = db.Column(db.DateTime, default=datetime.now)
+    extraction_started_at = db.Column(db.DateTime, nullable=True)
     processed_at = db.Column(db.DateTime, nullable=True)
-    
-    # Foreign keys
     uploader_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     
     # Relationships
     questions = db.relationship('Question', backref='document', lazy=True, cascade='all, delete-orphan')
+    
+    def update_status(self, status, message=None, progress=None):
+        """Update the extraction status and log the change."""
+        self.extraction_status = status
+        if message:
+            self.extraction_message = message
+        if progress is not None:
+            self.extraction_progress = progress
+        
+        # Update timestamps for status changes
+        if status == self.STATUS_PROCESSING and not self.extraction_started_at:
+            self.extraction_started_at = datetime.now()
+        elif status in [self.STATUS_COMPLETED, self.STATUS_FAILED]:
+            self.processed_at = datetime.now()
+        
+        db.session.commit()
+    
+    def get_status_info(self):
+        """Get the current status information as a dictionary."""
+        return {
+            'status': self.extraction_status,
+            'progress': self.extraction_progress,
+            'message': self.extraction_message or self.extraction_status.capitalize(),
+            'total_questions': self.total_questions,
+            'total_pages': self.total_pages,
+            'processed_pages': self.processed_pages,
+            'is_complete': self.extraction_status == self.STATUS_COMPLETED,
+            'is_failed': self.extraction_status == self.STATUS_FAILED,
+            'started_at': self.extraction_started_at.isoformat() if self.extraction_started_at else None,
+            'processed_at': self.processed_at.isoformat() if self.processed_at else None
+        }
+    
+    def __repr__(self):
+        return f'<QuestionDocument {self.title} ({self.extraction_status})>'
 
 class Question(db.Model):
     __tablename__ = 'questions'

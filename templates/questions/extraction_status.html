@@ -1,0 +1,698 @@
+{% extends "base.html" %}
+
+{% block title %}Question Extraction Status - ResearchNest{% endblock %}
+
+{% block extra_css %}
+<style>
+    .status-card {
+        border-left: 4px solid #dee2e6;
+        transition: all 0.3s ease;
+    }
+    .status-card.completed {
+        border-left-color: #198754;
+        background-color: rgba(25, 135, 84, 0.05);
+    }
+    .status-card.in-progress {
+        border-left-color: #0d6efd;
+        background-color: rgba(13, 110, 253, 0.05);
+    }
+    .status-card.failed {
+        border-left-color: #dc3545;
+        background-color: rgba(220, 53, 69, 0.05);
+    }
+    .status-card.pending {
+        border-left-color: #6c757d;
+    }
+    .spinner-border.spin {
+        animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .progress {
+        height: 10px;
+        border-radius: 5px;
+    }
+    .progress-bar {
+        transition: width 0.6s ease;
+    }
+    .elapsed-time {
+        font-family: monospace;
+        font-size: 1.1em;
+    }
+    .status-icon {
+        width: 24px;
+        height: 24px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-1">Question Extraction</h1>
+                    <p class="text-muted mb-0" id="statusText">Processing your document...</p>
+                </div>
+                <div class="text-end">
+                    <div class="text-muted small">Time Elapsed</div>
+                    <div class="h4 mb-0 elapsed-time" id="elapsedTime">00:00</div>
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress mb-4" style="height: 25px;">
+                <div id="extractionProgress" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" 
+                     role="progressbar" style="width: 0%" 
+                     aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    <span id="progressPercent" class="fw-bold">0%</span>
+                </div>
+            </div>
+
+            <!-- Status Text -->
+            <!-- Status Timeline -->
+            <div class="card mb-4 border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="mb-0 fw-semibold">
+                        <i data-feather="activity" class="me-2" width="20" height="20"></i>
+                        Processing Steps
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Upload Status -->
+                    <div id="uploadStatus" class="p-4 status-card completed">
+                        <div class="d-flex align-items-start">
+                            <div class="status-icon">
+                                <i class="fas fa-upload"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <h6 class="mb-1 fw-semibold">File Upload</h6>
+                                <p class="status-message mb-0">File received and ready for processing</p>
+                            </div>
+                            <div class="ms-3">
+                                <i class="fas fa-check-circle text-success"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Page Analysis Status -->
+                    <div id="pageAnalysisStatus" class="p-4 status-card">
+                        <div class="d-flex align-items-start">
+                            <div class="status-icon">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h6 class="mb-0 fw-semibold">Page Analysis</h6>
+                                    <span class="badge bg-light text-dark ms-2" id="pageAnalysisBadge">PENDING</span>
+                                </div>
+                                <p class="status-message mb-2">Waiting to analyze document</p>
+                                <div id="pageAnalysisProgress" class="mt-3" style="display: none;">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span class="text-muted">Page <span id="pagesProcessed" class="fw-medium">0</span> of <span id="totalPages" class="fw-medium">0</span></span>
+                                        <span id="pageProgressPercent" class="fw-semibold text-primary">0%</span>
+                                    </div>
+                                    <div class="progress" style="height: 6px;">
+                                        <div id="pageProgressBar" class="progress-bar" role="progressbar" style="width: 0%; background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ms-3">
+                                <i class="fas fa-spinner fa-spin text-primary d-none"></i>
+                                <i class="fas fa-check-circle text-success d-none"></i>
+                                <i class="fas fa-exclamation-circle text-danger d-none"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Question Extraction Status -->
+                    <div id="extractionStatus" class="p-4 status-card">
+                        <div class="d-flex align-items-start">
+                            <div class="status-icon">
+                                <i class="fas fa-question-circle"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h6 class="mb-0 fw-semibold">Question Extraction</h6>
+                                    <span class="badge bg-light text-dark ms-2" id="extractionBadge">PENDING</span>
+                                </div>
+                                <p class="status-message mb-2">Waiting to extract questions</p>
+                                <div id="extractionProgressContainer" class="mt-3" style="display: none;">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span class="text-muted">Questions found: <span id="questionsFound" class="fw-medium text-primary">0</span></span>
+                                    </div>
+                                    <div class="progress" style="height: 6px;">
+                                        <div id="extractionProgressBar" class="progress-bar" role="progressbar" style="width: 0%; background: linear-gradient(90deg, #6a11cb 0%, #2575fc 100%);"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="ms-3">
+                                <i class="fas fa-spinner fa-spin text-primary d-none"></i>
+                                <i class="fas fa-check-circle text-success d-none"></i>
+                                <i class="fas fa-exclamation-circle text-danger d-none"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Saving Status -->
+                    <div id="savingStatus" class="p-4 status-card">
+                        <div class="d-flex align-items-start">
+                            <div class="status-icon">
+                                <i class="fas fa-save"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h6 class="mb-0 fw-semibold">Saving Results</h6>
+                                    <span class="badge bg-light text-dark ms-2" id="savingBadge">PENDING</span>
+                                </div>
+                                <p class="status-message mb-0">Waiting to save questions</p>
+                            </div>
+                            <div class="ms-3">
+                                <i class="fas fa-spinner fa-spin text-primary d-none"></i>
+                                <i class="fas fa-check-circle text-success d-none"></i>
+                                <i class="fas fa-exclamation-circle text-danger d-none"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Completion Message -->
+                    <div class="card border-success mb-4" id="completionCard" style="display: none;">
+                        <div class="card-body text-center py-4">
+                            <div class="mb-3">
+                                <i data-feather="check-circle" class="text-success" width="48" height="48"></i>
+                            </div>
+                            <h4 class="text-success mb-2">Extraction Complete!</h4>
+                            <p class="mb-4">Successfully extracted <strong><span id="questionCount">0</span> questions</strong> from your document.</p>
+                            <div class="d-flex justify-content-center gap-3">
+                                <a href="{{ url_for('question_document_detail', document_id=document.id) }}" class="btn btn-primary px-4" id="viewQuestionsBtn">
+                                    <i data-feather="eye" class="me-2"></i> View Questions
+                                </a>
+                                <a href="{{ url_for('question_documents') }}" class="btn btn-outline-secondary">
+                                    <i data-feather="list" class="me-2"></i> View All Documents
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Error Message -->
+                    <div class="card border-danger mb-4" id="errorCard" style="display: none;">
+                        <div class="card-body py-4">
+                            <div class="d-flex">
+                                <div class="me-3">
+                                    <i data-feather="alert-triangle" class="text-danger" width="24" height="24"></i>
+                                </div>
+                                <div>
+                                    <h5 class="text-danger mb-2">Extraction Failed</h5>
+                                    <p class="mb-3" id="errorMessage">An error occurred during the extraction process. Please try again.</p>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-warning" id="retryBtn">
+                                            <i data-feather="refresh-cw" class="me-2"></i> Retry
+                                        </button>
+                                        <a href="{{ url_for('upload_question_document') }}" class="btn btn-outline-secondary">
+                                            <i data-feather="upload" class="me-2"></i> Upload New Document
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Document Info Section - Centered -->
+                <div class="col-12 col-lg-8 mx-auto mt-4">
+                    <!-- Document Info Card -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-white py-3">
+                            <h5 class="mb-0">Document Information</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <div class="text-center mb-3">
+                                    <i data-feather="file-text" class="text-muted mb-2" width="24" height="24"></i>
+                                    <h5 class="mb-0">{{ document.original_filename }}</h5>
+                                </div>
+                                <ul class="list-unstyled small text-muted mb-0 text-center">
+                                    <li class="mb-2">
+                                        <div class="d-flex align-items-center justify-content-center">
+                                            <i data-feather="hash" class="me-2" width="16" height="16"></i>
+                                            <span>{{ document.file_size|filesizeformat }}</span>
+                                        </div>
+                                    </li>
+                                    <li class="mb-2">
+                                        <div class="d-flex align-items-center justify-content-center">
+                                            <i data-feather="calendar" class="me-2" width="16" height="16"></i>
+                                            <span>Uploaded on {{ document.uploaded_at.strftime('%b %d, %Y') if document.uploaded_at }}</span>
+                                        </div>
+                                    </li>
+                                    <li class="mb-2">
+                                        <div class="d-flex align-items-center justify-content-center">
+                                            <i data-feather="clock" class="me-2" width="16" height="16"></i>
+                                            <span>Started at {{ document.uploaded_at.strftime('%H:%M') if document.uploaded_at }}</span>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                            <hr>
+                            <div class="small text-center">
+                                <h6 class="mb-3">Extraction Details</h6>
+                                <div class="d-flex flex-column align-items-center">
+                                    <div class="d-flex justify-content-center gap-4 mb-3 w-100">
+                                        <span class="text-muted">Pages:</span>
+                                        <span id="sidebarPages">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-center gap-4 mb-3 w-100">
+                                        <span class="text-muted">Questions Found:</span>
+                                        <span id="sidebarQuestions">0</span>
+                                    </div>
+                                    <div class="d-flex justify-content-center gap-4 w-100">
+                                        <span class="text-muted">Status:</span>
+                                        <span class="badge bg-primary" id="sidebarStatus">Processing</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Help Card -->
+                    <div class="card mt-4">
+                        <div class="card-header bg-white py-3 text-center">
+                            <h5 class="mb-0">Need Help?</h5>
+                        </div>
+                        <div class="card-body text-center">
+                            <p class="small text-muted mb-3">If you're experiencing issues with the extraction process, try these steps:</p>
+                            <ol class="small text-muted ps-3">
+                                <li class="mb-2">Ensure your document is clear and legible</li>
+                                <li class="mb-2">Check that the document is not password protected</li>
+                                <li class="mb-2">Try converting the document to PDF format</li>
+                                <li>Contact support if the issue persists</li>
+                            </ol>
+                            <button class="btn btn-outline-primary btn-sm w-100 mt-2">
+                                <i data-feather="help-circle" class="me-1" width="14" height="14"></i> Get Help
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Last Updated -->
+            <div class="text-center text-muted small mt-4">
+                <i data-feather="clock" class="me-1" width="12" height="12"></i>
+                <span id="lastUpdated">Last updated: Just now</span>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<!-- Include Socket.IO -->
+<script src="https://cdn.socket.io/4.5.0/socket.io.min.js" 
+        integrity="sha384-7Ey4fY3H7tQZz3GVCBz8pW/6B3z0x4Z+x4Zx/GsGkXVyJ8p9AKJDw4WhcG5FEA" 
+        crossorigin="anonymous"></script>
+<script>
+//<![CDATA[
+    // Status constants
+    var STATUS = {
+        PENDING: 'pending',
+        PROCESSING: 'processing',
+        EXTRACTING: 'extracting',
+        SAVING: 'saving',
+        COMPLETED: 'completed',
+        FAILED: 'failed'
+    };
+    
+    // Global variables
+    var checkInterval = null;
+    var progress = 0;
+    var progressInterval = null;
+    var elapsedTimeInterval = null;
+    var documentId = '{{ document_id }}';
+    var startTime = new Date();
+    
+    // Format time in seconds to MM:SS format
+    function formatElapsedTime(seconds) {
+        try {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        } catch (error) {
+            console.error('Error in formatElapsedTime:', error);
+            return '00:00';
+        }
+    }
+    
+    // Update the elapsed time display
+    function updateElapsedTime() {
+        try {
+            const now = new Date();
+            const elapsedSeconds = Math.floor((now - startTime) / 1000);
+            const elapsedTimeElement = document.getElementById('elapsedTime');
+            
+            if (!elapsedTimeElement) {
+                console.error('elapsedTime element not found');
+                return;
+            }
+            
+            const formattedTime = formatElapsedTime(elapsedSeconds);
+            console.log('Updating elapsed time:', formattedTime);
+            elapsedTimeElement.textContent = formattedTime;
+        } catch (error) {
+            console.error('Error in updateElapsedTime:', error);
+        }
+    }
+    
+    /**
+     * Starts the progress animation
+     */
+    function startProgress() {
+        progressInterval = setInterval(function() {
+            if (progress < 90) {  // Don't go to 100% until we're actually done
+                progress += Math.random() * 5;
+                var progressBar = document.getElementById('extractionProgress');
+                if (progressBar) {
+                    progressBar.style.width = Math.min(progress, 90) + '%';
+                }
+            }
+        }, 500);
+    }
+    
+    // Check extraction status
+    function checkStatus() {
+        fetch(`/questions/${documentId}/status`)
+            .then(response => response.json())
+            .then(data => {
+                updateUI(data);
+                
+                // If extraction is complete or failed, stop checking
+                if (data.status === 'completed' || data.status === 'failed') {
+                    clearInterval(checkInterval);
+                    clearInterval(progressInterval);
+                    if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+                    document.getElementById('extractionProgress').style.width = '100%';
+                    
+                    // Update the elapsed time one last time
+                    updateElapsedTime();
+                }
+            })
+            .catch(error => {
+                console.error('Error checking status:', error);
+                showError('Failed to check extraction status. Please refresh the page.');
+                clearInterval(checkInterval);
+            });
+    }
+    
+    function updateUI(data) {
+        console.log('Status update received:', data);
+        
+        // Update progress bar
+        const progress = data.progress || 0;
+        document.getElementById('extractionProgress').style.width = `${progress}%`;
+        document.getElementById('progressPercent').textContent = `${progress}%`;
+        
+        // Update status text
+        document.getElementById('statusText').textContent = data.message || 'Processing your document...';
+        
+        // Update status cards based on extraction status
+        const status = data.status || 'pending';
+        
+        // Update Upload status card
+        const uploadCard = document.getElementById('uploadStatus');
+        if (uploadCard) {
+            uploadCard.className = `p-3 border-bottom status-card ${['completed', 'failed', 'processing', 'extracting', 'saving'].includes(status) ? 'completed' : ''}`;
+            const uploadStatusText = uploadCard.querySelector('p');
+            if (uploadStatusText) {
+                uploadStatusText.textContent = 'File received and ready for processing';
+            }
+        }
+        
+        // Update Page Analysis status card
+        const pageAnalysisCard = document.getElementById('pageAnalysisStatus');
+        if (pageAnalysisCard) {
+            const isActive = ['processing', 'extracting', 'saving', 'completed'].includes(status);
+            pageAnalysisCard.className = `p-3 border-bottom status-card ${isActive ? 'in-progress' : ''} ${status === 'completed' ? 'completed' : ''}`;
+            
+            const pageAnalysisText = pageAnalysisCard.querySelector('p');
+            if (pageAnalysisText) {
+                pageAnalysisText.textContent = isActive ? 
+                    (status === 'processing' ? 'Analyzing document pages...' : 'Document analysis complete') : 
+                    'Waiting to analyze document';
+            }
+            
+            // Update page progress if available
+            if (data.total_pages !== undefined && data.processed_pages !== undefined) {
+                const progressContainer = pageAnalysisCard.querySelector('#pageAnalysisProgress');
+                if (progressContainer) progressContainer.style.display = 'block';
+                
+                const pagesProcessed = pageAnalysisCard.querySelector('#pagesProcessed');
+                if (pagesProcessed) pagesProcessed.textContent = data.processed_pages;
+                
+                const totalPages = pageAnalysisCard.querySelector('#totalPages');
+                if (totalPages) totalPages.textContent = data.total_pages;
+                
+                const pageProgressBar = pageAnalysisCard.querySelector('#pageProgressBar');
+                if (pageProgressBar && data.total_pages > 0) {
+                    const pageProgress = Math.round((data.processed_pages / data.total_pages) * 100);
+                    pageProgressBar.style.width = `${pageProgress}%`;
+                    
+                    const pageProgressPercent = pageAnalysisCard.querySelector('#pageProgressPercent');
+                    if (pageProgressPercent) pageProgressPercent.textContent = `${pageProgress}%`;
+                }
+            }
+        }
+        
+        // Update Question Extraction status card
+        const extractionCard = document.getElementById('extractionStatus');
+        if (extractionCard) {
+            const isActive = ['extracting', 'saving', 'completed'].includes(status);
+            extractionCard.className = `p-3 border-bottom status-card ${isActive ? 'in-progress' : ''} ${status === 'completed' ? 'completed' : ''}`;
+            
+            const extractionText = extractionCard.querySelector('p');
+            if (extractionText) {
+                extractionText.textContent = status === 'extracting' ? 'Extracting questions from pages...' :
+                                           status === 'saving' ? 'Saving extracted questions...' :
+                                           status === 'completed' ? 'All questions extracted successfully' :
+                                           'Waiting to extract questions';
+            }
+            
+            // Update questions found count if available
+            if (data.total_questions !== undefined) {
+                const questionsFound = extractionCard.querySelector('#questionsFound');
+                if (questionsFound) questionsFound.textContent = data.total_questions;
+                
+                const progressContainer = extractionCard.querySelector('#extractionProgressContainer');
+                if (progressContainer) progressContainer.style.display = 'block';
+            }
+        }
+        
+        // Update Saving status card
+        const savingCard = document.getElementById('savingStatus');
+        if (savingCard) {
+            const isActive = status === 'saving' || status === 'completed';
+            savingCard.className = `p-3 status-card ${isActive ? 'in-progress' : ''} ${status === 'completed' ? 'completed' : ''}`;
+            
+            const savingText = savingCard.querySelector('p');
+            if (savingText) {
+                savingText.textContent = status === 'saving' ? 'Saving questions to database...' :
+                                        status === 'completed' ? 'All questions saved successfully' :
+                                        'Waiting to save questions';
+            }
+        }
+        
+        // Show completion or error
+        if (data.status === 'completed') {
+            document.getElementById('extractionComplete').style.display = 'block';
+            document.getElementById('questionCount').textContent = data.question_count || 'Several';
+            progress = 100;
+            document.getElementById('extractionProgress').style.width = '100%';
+        } else if (data.status === 'failed') {
+            showError(data.message || 'Failed to extract questions from the document.');
+        }
+        
+        // Update progress based on status
+        updateProgress(data.status);
+        
+        // Refresh Feather icons
+        if (window.feather) {
+            window.feather.replace();
+        }
+    }
+    
+    // Update status card UI
+    function updateStatusCard(cardId, title, message, icon, status, processed = null, total = null, questions = null) {
+        const card = document.getElementById(cardId);
+        if (!card) return;
+        
+        // Update card classes
+        card.className = `p-4 status-card ${status}`;
+        
+        // Update icon
+        const iconElement = card.querySelector('.status-icon i');
+        if (iconElement) {
+            iconElement.className = `fas fa-${icon}`;
+        }
+        
+        // Update title and message
+        const titleElement = card.querySelector('h6');
+        if (titleElement) titleElement.textContent = title;
+        
+        const messageElement = card.querySelector('.status-message');
+        if (messageElement) messageElement.textContent = message;
+        
+        // Update status badge
+        const badgeElement = card.querySelector('.badge');
+        if (badgeElement) {
+            const statusText = status === 'in-progress' ? 'IN PROGRESS' : 
+                              status === 'completed' ? 'COMPLETED' : 
+                              status === 'failed' ? 'FAILED' : 'PENDING';
+            
+            badgeElement.textContent = statusText;
+            badgeElement.className = 'badge fw-medium';
+            
+            if (status === 'in-progress') {
+                badgeElement.classList.add('bg-primary-soft', 'text-primary');
+            } else if (status === 'completed') {
+                badgeElement.classList.add('bg-success-soft', 'text-success');
+            } else if (status === 'failed') {
+                badgeElement.classList.add('bg-danger-soft', 'text-danger');
+            } else {
+                badgeElement.classList.add('bg-light', 'text-dark');
+            }
+        }
+        
+        // Update status icons
+        const spinnerIcon = card.querySelector('.fa-spinner');
+        const checkIcon = card.querySelector('.fa-check-circle');
+        const errorIcon = card.querySelector('.fa-exclamation-circle');
+        
+        if (spinnerIcon) spinnerIcon.classList.add('d-none');
+        if (checkIcon) checkIcon.classList.add('d-none');
+        if (errorIcon) errorIcon.classList.add('d-none');
+        
+        if (status === 'in-progress') {
+            if (spinnerIcon) spinnerIcon.classList.remove('d-none');
+        } else if (status === 'completed') {
+            if (checkIcon) checkIcon.classList.remove('d-none');
+        } else if (status === 'failed') {
+            if (errorIcon) errorIcon.classList.remove('d-none');
+        }
+    }
+    
+    /**
+     * Updates the progress bar based on the current status
+     * @param {string} status - The current status of the extraction process
+     */
+    function updateProgress(status) {
+        // Set progress based on status
+        let newProgress = 0;
+        
+        switch(status) {
+            case 'uploaded':
+                newProgress = 10;
+                break;
+            case 'processing':
+                newProgress = 30;
+                break;
+            case 'extracting':
+                newProgress = 60;
+                break;
+            case 'saving':
+                newProgress = 85;
+                break;
+            case 'completed':
+                newProgress = 100;
+                const progressElement = document.getElementById('extractionProgress');
+                if (progressElement) {
+                    progressElement.classList.remove('progress-bar-animated');
+                }
+                break;
+            case 'failed':
+                newProgress = 100;
+                break;
+            default:
+                newProgress = 5;
+        }
+        
+        // Smooth transition to new progress
+        if (newProgress > progress) {
+            progress = newProgress;
+            const progressElement = document.getElementById('extractionProgress');
+            if (progressElement) {
+                progressElement.style.width = `${progress}%`;
+                const percentElement = document.getElementById('progressPercent');
+                if (percentElement) percentElement.textContent = `${Math.round(progress)}%`;
+            }
+        }
+    }
+    
+    function showError(message) {
+        const errorDiv = document.getElementById('extractionError');
+        document.getElementById('errorMessage').textContent = message;
+        errorDiv.style.display = 'block';
+        
+        // Add retry button
+        if (!document.getElementById('retryButton')) {
+            const retryButton = document.createElement('button');
+            retryButton.id = 'retryButton';
+            retryButton.className = 'btn btn-sm btn-outline-danger ms-2';
+            retryButton.innerHTML = '<i data-feather="refresh-cw" class="me-1"></i>Retry';
+            retryButton.onclick = () => window.location.reload();
+            errorDiv.appendChild(retryButton);
+        }
+    }
+    
+
+    
+    // Start the process when the DOM is fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM fully loaded, initializing...');
+        console.log('startTime initialized to:', startTime);
+        
+        startProgress();
+        checkStatus();
+        checkInterval = setInterval(checkStatus, 2000); // Check every 2 seconds
+        
+        // Start updating elapsed time every second
+        console.log('Starting elapsed time updates...');
+        updateElapsedTime();
+        elapsedTimeInterval = setInterval(updateElapsedTime, 1000);
+        console.log('Elapsed time interval started with ID:', elapsedTimeInterval);
+        
+        // Initialize tooltips
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+        
+        // Initialize popovers
+        var popoverTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="popover"]'));
+        popoverTriggerList.map(function (popoverTriggerEl) {
+            return new bootstrap.Popover(popoverTriggerEl);
+        });
+        
+        // Initialize Feather Icons
+        if (typeof feather !== 'undefined') {
+            feather.replace();
+        }
+    });
+    
+    // Clean up on page unload
+    window.addEventListener('beforeunload', function() {
+        if (checkInterval) clearInterval(checkInterval);
+        if (progressInterval) clearInterval(progressInterval);
+        if (elapsedTimeInterval) clearInterval(elapsedTimeInterval);
+    });
+//]]>
+</script>
+{% endblock %}

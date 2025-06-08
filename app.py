@@ -1,7 +1,10 @@
 import os
 import logging
+from logging.handlers import RotatingFileHandler
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
+from flask_socketio import SocketIO
+from flask_migrate import Migrate
 from sqlalchemy.orm import DeclarativeBase
 from dotenv import load_dotenv
 
@@ -18,18 +21,48 @@ db = SQLAlchemy(model_class=Base)
 
 # Create the app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
+app.config.from_pyfile('config.py')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(app.instance_path, 'researchnest.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join(app.instance_path, 'uploads')
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') or 'dev-key-123'
+app.config['DEBUG'] = True
 
-# Configure database
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI", "sqlite:///researchnest.db")
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+# Configure logging
+if not os.path.exists('logs'):
+    os.makedirs('logs')
 
-# File upload configuration
-app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB
-app.config['UPLOAD_FOLDER'] = 'uploads'
+# File handler for logging
+file_handler = RotatingFileHandler('logs/app.log', maxBytes=10240, backupCount=10)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'))
+file_handler.setLevel(logging.INFO)
 
-# Initialize the app with the extension
+# Console handler for development
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.DEBUG)
+console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+
+# Get the root logger
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# Set Werkzeug logger level
+logging.getLogger('werkzeug').setLevel(logging.INFO)
+
+# Initialize extensions
 db.init_app(app)
+socketio = SocketIO(app, cors_allowed_origins="*", logger=True, engineio_logger=True)
+migrate = Migrate(app, db)
+
+# Configure logging for SocketIO
+socketio_log = logging.getLogger('socketio')
+socketio_log.setLevel(logging.ERROR)
+engineio_log = logging.getLogger('engineio')
+engineio_log.setLevel(logging.ERROR)
 
 # Create upload directory if it doesn't exist
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -212,8 +245,8 @@ def initialize_database():
         logging.error(f"Database initialization failed: {e}")
 
 # Import routes after app initialization
-import routes  # noqa: E402
-import auth  # noqa: E402
+from routes import *  # noqa: E402, F403
+from auth import *  # noqa: E402, F403
 
 with app.app_context():
     initialize_database()

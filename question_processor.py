@@ -6,6 +6,8 @@ import cv2
 import numpy as np
 from PIL import Image
 from datetime import datetime
+from typing import List, Dict, Any, Optional
+from dataclasses import dataclass
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 import nltk
@@ -14,258 +16,702 @@ from nltk.tokenize import word_tokenize, sent_tokenize
 from app import app, db
 from models import Question, QuestionDocument, Unit, Topic, Subject
 
-# Download required NLTK data
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
+# Set up NLTK data path
+import nltk
+import shutil
 
+# Define NLTK data paths
+nltk_data_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nltk_data')
+os.makedirs(nltk_data_path, exist_ok=True)
+
+# Add our custom path to the beginning of the NLTK data path
+nltk.data.path.insert(0, nltk_data_path)
+
+# Function to manually load NLTK data
+def load_nltk_data():
+    # Check if we have the required data files
+    punkt_path = os.path.join(nltk_data_path, 'tokenizers', 'punkt')
+    stopwords_path = os.path.join(nltk_data_path, 'corpora', 'stopwords')
+    tagger_path = os.path.join(nltk_data_path, 'taggers', 'averaged_perceptron_tagger')
+    
+    # Check and load punkt
+    if os.path.exists(punkt_path):
+        print(f"Found punkt data at {punkt_path}")
+    else:
+        print("Downloading punkt data...")
+        nltk.download('punkt', download_dir=nltk_data_path, quiet=False)
+    
+    # Check and load stopwords
+    if os.path.exists(stopwords_path):
+        print(f"Found stopwords data at {stopwords_path}")
+    else:
+        print("Downloading stopwords data...")
+        nltk.download('stopwords', download_dir=nltk_data_path, quiet=False)
+    
+    # Check and load averaged_perceptron_tagger
+    if os.path.exists(os.path.join(tagger_path, 'averaged_perceptron_tagger.pickle')):
+        print(f"Found averaged_perceptron_tagger data at {tagger_path}")
+    else:
+        print("Downloading averaged_perceptron_tagger data...")
+        nltk.download('averaged_perceptron_tagger', download_dir=nltk_data_path, quiet=False)
+
+# Load required NLTK data
+print("Loading NLTK data...")
 try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords')
+    load_nltk_data()
+    print("NLTK data loaded successfully")
+except Exception as e:
+    print(f"Error loading NLTK data: {str(e)}")
+    raise
+
+@dataclass
+class ExtractedQuestion:
+    """Data class to hold extracted question information."""
+    question_number: str
+    question_text: str
+    page_number: int
+    section: str
+    question_type: str
+    marks: int = 1
+    has_formula: bool = False
+    has_diagram: bool = False
+    metadata: Optional[Dict[str, Any]] = None
+
+class PDFQuestionExtractor:
+    """Extract questions from PDF documents with improved text and structure analysis."""
+    
+    def __init__(self, pdf_path: str):
+        """Initialize with path to PDF file."""
+        self.pdf_path = pdf_path
+        self.doc = fitz.open(pdf_path)
+        self.current_section = ""
+        self.progress_callback = None
+        self.total_pages = len(self.doc)
+    
+    def set_progress_callback(self, callback):
+        """Set a callback function to report progress.
+        
+        The callback should accept the following parameters:
+        - current_page: Current page being processed (0-based)
+        - total_pages: Total number of pages
+        - message: Optional status message
+        """
+        self.progress_callback = callback
+    
+    def _report_progress(self, current_page, message=None):
+        """Report progress using the callback if available."""
+        if self.progress_callback:
+            self.progress_callback(current_page, self.total_pages, message)
+    
+    def extract_questions(self) -> List[ExtractedQuestion]:
+        """Extract all questions from the PDF with progress reporting."""
+        app.logger.info(f"Extracting questions from: {os.path.basename(self.pdf_path)}")
+        questions = []
+        
+        try:
+            self._report_progress(0, "Starting question extraction...")
+            
+            for page_num in range(len(self.doc)):
+                page = self.doc[page_num]
+                
+                # Report progress for this page
+                self._report_progress(
+                    page_num,
+                    f"Extracting questions from page {page_num + 1} of {self.total_pages}..."
+                )
+                
+                # Get page text and update section
+                text = page.get_text()
+                self._update_section(text)
+                
+                # Extract questions from this page
+                page_questions = self._extract_questions_from_page(text, page_num + 1)
+                questions.extend(page_questions)
+                
+                # Log progress
+                if page_num % 5 == 0 or page_num == len(self.doc) - 1:
+                    app.logger.info(
+                        f"Processed page {page_num + 1}/{len(self.doc)} - "
+                        f"Found {len(page_questions)} questions on this page, "
+                        f"Total so far: {len(questions)}"
+                    )
+                
+            # Final progress update
+            self._report_progress(
+                len(self.doc) - 1,
+                f"Completed extraction of {len(questions)} questions from {len(self.doc)} pages"
+            )
+            
+        except Exception as e:
+            error_msg = f"Error extracting questions from page {page_num + 1}: {str(e)}"
+            app.logger.error(error_msg, exc_info=True)
+            self._report_progress(
+                page_num if 'page_num' in locals() else 0,
+                f"Error: {error_msg[:200]}"
+            )
+            raise
+            
+        return questions
+    
+    def _update_section(self, text: str) -> None:
+        """Update current section based on section headers in text."""
+        section_match = re.search(r'Section\s+([A-Z]):\s*([^\n]+)', text)
+        if section_match:
+            self.current_section = section_match.group(2).strip()
+    
+    def _extract_questions_from_page(self, text: str, page_num: int) -> List[ExtractedQuestion]:
+        """
+        Extract questions from a single page's text with improved handling of various formats.
+        
+        Args:
+            text: The text content of the page
+            page_num: The page number
+            
+        Returns:
+            List of ExtractedQuestion objects
+        """
+        questions = []
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            
+            # Check if line starts with a question number/letter
+            question_match = self._match_question_pattern(line)
+            if question_match:
+                question_num = question_match.group(1).strip()
+                question_text = [question_match.group(2).strip() if question_match.group(2) else '']
+                
+                # Initialize variables for tracking question parts
+                in_question = True
+                options_started = False
+                
+                # Collect continuation lines until next question or end
+                i += 1
+                while i < len(lines) and in_question:
+                    next_line = lines[i].strip()
+                    
+                    # Skip empty lines within the same question
+                    if not next_line:
+                        i += 1
+                        continue
+                    
+                    # Check if next line starts a new question
+                    next_question_match = self._match_question_pattern(next_line)
+                    if next_question_match:
+                        in_question = False
+                        continue
+                        
+                    # Check for common question endings
+                    if self._is_question_end(next_line, question_text):
+                        in_question = False
+                        continue
+                        
+                    # Handle options in multiple choice questions
+                    if re.match(r'^([a-zA-Z]|[ivx]+\)|\d+\.)\s+', next_line):
+                        if not options_started and len(question_text) > 0 and len(question_text[-1]) < 50:
+                            # If we have very short question text, this might be part of the question
+                            question_text.append(next_line)
+                        else:
+                            options_started = True
+                            # For now, we'll include options in the question text
+                            question_text.append(next_line)
+                    else:
+                        # Regular question text
+                        question_text.append(next_line)
+                    
+                    i += 1
+                
+                # Clean up question text
+                full_text = ' '.join(question_text).strip()
+                
+                # Skip if question text is too short (likely a false positive)
+                if len(full_text) < 10:
+                    i += 1
+                    continue
+                    
+                # Create the question object
+                question = ExtractedQuestion(
+                    question_number=question_num,
+                    question_text=full_text,
+                    page_number=page_num,
+                    section=self.current_section,
+                    question_type=self._determine_question_type(full_text),
+                    marks=self._extract_marks(full_text),
+                    has_formula=self._contains_formula(full_text),
+                    has_diagram=self._contains_diagram_marker(full_text)
+                )
+                questions.append(question)
+                
+                # If we've identified this as a multiple choice question, try to extract the options
+                if question.question_type == "Multiple Choice":
+                    self._extract_multiple_choice_options(question, question_text)
+            else:
+                i += 1
+                
+        return questions
+    
+    def _match_question_pattern(self, text: str) -> re.Match:
+        """Match text against various question patterns."""
+        patterns = [
+            # Numbered questions (1., 2., etc.)
+            r'^(\d+)[\.\)\]\}\s]\s*(.*)',
+            # Lettered questions (a), b), etc.)
+            r'^\(?([a-z])\)\s*(.*)',
+            # Q1, Q2 or Q1:, Q2:
+            r'^[Qq]\s*(\d+)[\.\)\:]?\s*(.*)',
+            # Question 1, Problem 2, etc.
+            r'^(?:Question|Problem|Exercise|Task)\s*(\d+)[\.\)\: ]?\s*(.*)',
+            # Section-based numbering (1.1, 1.2, etc.)
+            r'^(\d+\.\d+)[\.\)\s]\s*(.*)',
+            # Bullet points with numbers or letters
+            r'^[•\-*]\s*(\d+|[a-z])\)?\s*(.*)'
+        ]
+        
+        for pattern in patterns:
+            match = re.match(pattern, text)
+            if match:
+                return match
+        return None
+    
+    def _determine_question_type(self, text: str) -> str:
+        """
+        Determine the type of question based on its content, structure, and keywords.
+        Returns one of: 'Multiple Choice', 'True/False', 'Matching', 'Fill-in-the-Blank', 
+        'Short Answer', 'Long Answer', 'Problem Solving', 'Diagram-based', 'Essay', 'Calculation',
+        'Proof', 'Case Study', or 'Other'.
+        """
+        text_lower = text.lower().strip()
+        
+        # Check for multiple choice (A), B), C), etc. or (i), (ii), (iii), etc.)
+        if (re.search(r'\b(a|b|c|d|e)\)', text_lower) or 
+            re.search(r'\([ivx]+\)', text_lower) or
+            re.search(r'\b(true|false|t|f)\b', text_lower, re.IGNORECASE)):
+            return "Multiple Choice"
+            
+        # Check for true/false questions
+        if (re.search(r'\b(true|false)\b', text_lower) and 
+            any(word in text_lower for word in ['circle', 'select', 'choose', 'tick', 'mark'])):
+            return "True/False"
+            
+        # Check for matching questions
+        if (re.search(r'match\s+(?:column|the following|items?|pairs?|statements?)', text_lower) or
+            re.search(r'column\s+(a|i).*column\s+(b|ii)', text_lower, re.DOTALL)):
+            return "Matching"
+            
+        # Check for fill-in-the-blank
+        if (re.search(r'\b(?:fill\s*in|complete|fill\s*the\s*blank)', text_lower) or
+            re.search(r'\b_+\b', text) or  # Underscore placeholders
+            re.search(r'\b(?:write|provide|give|state)\s+(?:the|a)?\s*[^\n?]*\?', text_lower)):
+            return "Fill-in-the-Blank"
+        
+        # Check for diagram-based questions
+        if self._contains_diagram_marker(text_lower):
+            return "Diagram-based"
+            
+        # Check for calculation problems
+        if (any(word in text_lower for word in ['calculate', 'compute', 'solve for', 'find', 'determine', 'evaluate', 'simplify']) or
+            re.search(r'\b(?:what is|what are|how (?:much|many|long|far|fast|tall|wide|high))\b', text_lower) or
+            self._contains_formula(text_lower)):
+            return "Problem Solving"
+            
+        # Check for proof questions
+        if (any(word in text_lower for word in ['prove', 'show that', 'demonstrate', 'verify', 'derive']) or
+            re.search(r'\b(?:prove|show)\s+(?:that\s+)?[A-Z]', text)):
+            return "Proof"
+            
+        # Check for case studies
+        if (any(word in text_lower for word in ['case study', 'case of', 'scenario', 'situation']) or
+            re.search(r'\bgiven\s+(?:that\s+)?[A-Z]', text)):
+            return "Case Study"
+            
+        # Check for essay questions
+        if (any(word in text_lower for word in ['discuss', 'analyze', 'critique', 'evaluate', 'justify', 'examine', 'explore', 'elaborate', 'compare and contrast']) or
+            len(text.split()) > 50):  # Long questions are likely essays
+            return "Essay"
+            
+        # Check for short answer
+        if (any(word in text_lower for word in ['what', 'when', 'where', 'who', 'which', 'why', 'how', 'name', 'list']) or
+            '?' in text_lower or
+            len(text.split()) < 30):  # Short questions
+            return "Short Answer"
+            
+        # Default to long answer for anything that doesn't fit above
+        return "Long Answer"
+    
+    def _extract_marks(self, text: str) -> int:
+        """Extract marks from question text if specified."""
+        marks_match = re.search(r'\((\d+)\s*(?:marks?|points?)\)', text, re.IGNORECASE)
+        if marks_match:
+            return int(marks_match.group(1))
+        
+        # Check for marks at the end of the question
+        marks_match = re.search(r'\[(\d+)\s*(?:marks?|points?)\]', text, re.IGNORECASE)
+        if marks_match:
+            return int(marks_match.group(1))
+            
+        return 1  # Default marks
+    
+    def _contains_formula(self, text: str) -> bool:
+        """Check if question contains mathematical formulas with enhanced detection."""
+        # Basic math symbols
+        math_symbols = r'[∑∫∂∆√∛∜∞≤≥≠≈≡±×÷∈∉⊆⊂∪∩∅]|\\[a-zA-Z]+|\^[0-9a-zA-Z{}()]+|_[0-9a-zA-Z{}()]+|\b(?:sin|cos|tan|cot|sec|csc|log|ln|exp|sqrt|integral|derivative|lim|sum|prod|int|iint|iiint)\b'
+        
+        # Common formula patterns
+        formula_patterns = [
+            r'\$[^$]+\$',  # LaTeX inline math
+            r'\\\(.*?\\\)|\\\[.*?\\\]',  # LaTeX display math
+            r'\b(?:eq\.?|equation|formula|theorem|proof|corollary|lemma|proposition)\b',
+            r'[a-zA-Z]\s*[=≠≈]\s*[a-zA-Z0-9+\-*/^()]+',  # Equations like x = 2y + 3
+            r'\d+\s*[a-zA-Zα-ωΑ-Ω]\b',  # Variables with coefficients
+            r'[a-zA-Z]\s*[+\-*/^]\s*[a-zA-Z0-9()]',  # Basic operations with variables
+            r'\b(?:if|then|therefore|because|since|given|let|assume|suppose|consider)\b.*?[=≠≈<>]',  # Conditional math
+        ]
+        
+        # Check for any math symbols or patterns
+        if re.search(math_symbols, text, re.IGNORECASE):
+            return True
+            
+        # Check for formula patterns
+        if any(re.search(pattern, text, re.IGNORECASE | re.DOTALL) for pattern in formula_patterns):
+            return True
+            
+        # Check for common math notation
+        if re.search(r'[a-zA-Z]\s*[{}]\s*[=:]', text):  # Set notation or function definitions
+            return True
+            
+        return False
+    
+    def _is_question_end(self, line: str, question_text: List[str]) -> bool:
+        """
+        Determine if the current line indicates the end of a question.
+        
+        Args:
+            line: The current line being processed
+            question_text: List of lines in the current question
+            
+        Returns:
+            bool: True if this line indicates the end of the question
+        """
+        # Common question endings
+        endings = [
+            r'\b(?:end\s+of\s+questions?|stop|that\s+is\s+all|no\s+more\s+questions)',
+            r'\b(?:total|maximum|max)\s*[\[({]?\s*\d+\s*(?:marks?|points?|pts?\b)\s*[\])}]?',
+            r'\b(?:page|p\.?\s*)\d+\s*(?:of|/)\s*\d+\s*$',
+            r'\b(?:continued\s+on\s+next\s+page|cont\.?\s*\d+)\b',
+            r'\b(?:section|part|chapter)\s+[A-Z0-9]+\b',
+            r'^\s*\*{3,}\s*$',  # Lines with *** or more
+            r'^\s*_{3,}\s*$',  # Lines with ___ or more
+            r'^\s*-{3,}\s*$'   # Lines with --- or more
+        ]
+        
+        # Check for ending patterns
+        if any(re.search(pattern, line, re.IGNORECASE) for pattern in endings):
+            return True
+            
+        # Check if this looks like the start of a new section or header
+        if (re.match(r'^\s*[A-Z][A-Z\s]+$', line) and  # All caps line
+            len(line.split()) < 5 and  # Short line (likely a header)
+            len(question_text) > 1):  # Already have some question text
+            return True
+            
+        # Check for page numbers or footers
+        if (re.search(r'^\s*\d+\s*$', line) or  # Just a number
+            re.search(r'^[A-Za-z]+\s+\d+\s*$', line)):  # Month Year or similar
+            return True
+            
+        return False
+        
+    def _extract_multiple_choice_options(self, question: ExtractedQuestion, question_text: List[str]) -> None:
+        """
+        Extract multiple choice options from question text and update the question object.
+        
+        Args:
+            question: The question object to update
+            question_text: List of text lines for the question
+        """
+        options = {}
+        current_option = None
+        option_pattern = re.compile(r'^\s*([a-zA-Z]|[ivx]+\)|\d+\.)\s*(.*)')
+        
+        # Process each line to find options
+        for line in question_text:
+            match = option_pattern.match(line)
+            if match:
+                option_key = match.group(1).strip().lower()
+                option_text = match.group(2).strip()
+                
+                # Skip if this looks like part of the question text
+                if current_option is None and len(option_text.split()) > 5:  # Too long for an option
+                    continue
+                    
+                current_option = option_key
+                options[option_key] = option_text
+            elif current_option is not None:
+                # Continue the current option if the line is indented or starts with a space
+                if line.startswith((' ', '\t')) and line.strip():
+                    options[current_option] += ' ' + line.strip()
+        
+        # Update the question object with the extracted options
+        if options:
+            if not hasattr(question, 'metadata'):
+                question.metadata = {}
+            question.metadata['options'] = options
+            
+            # If we have a question mark in the first line, try to separate the question from options
+            first_line = question_text[0] if question_text else ''
+            if '?' in first_line and len(question_text) > 1:
+                question_parts = first_line.split('?', 1)
+                if len(question_parts) > 1 and question_parts[1].strip():
+                    question.question_text = question_parts[0] + '?'
+                    # The rest might be part of the first option
+                    first_option = question_parts[1].strip()
+                    if first_option and not any(k in first_option.lower() for k in options.keys()):
+                        # If we don't already have this as an option, add it
+                        first_letter = chr(ord('a') + len(options))
+                        options[first_letter] = first_option
+    
+    def _contains_diagram_marker(self, text: str) -> bool:
+        """Check if question contains diagram-related markers with enhanced detection."""
+        # Basic diagram indicators
+        diagram_indicators = [
+            r'\b(?:diagram|figure|draw|sketch|illustration|graph|chart|plot|image|picture|schematic|blueprint|map)\b',
+            r'\blabel\s*(?:the|each|all|any|every|some|these|those|following|below|above|on|in|at|for|with|of)?\s*',
+            r'\b(?:show|indicate|mark|identify|point out|highlight|circle|box|shade|color|colour|outline|trace|plot)\b.*\b(on|in|at|for|with|of)\b.*\b(diagram|figure|graph|chart|image|picture|drawing|illustration)',
+            r'\b(refer|according|see|based on|using|use|given|following|shown|displayed|illustrated|depicted|represented)\b.*\b(diagram|figure|graph|chart|image|picture|drawing|illustration)',
+            r'\b(diagram|figure|graph|chart|image|picture|drawing|illustration)\s*[0-9]*\s*(?:shows|showing|illustrates|depicts|represents|demonstrates|presents|displays|contains|includes)',
+            r'\b(?:as|like|similar to|resembling|in the style of|in the form of|in the shape of|in the pattern of)\b.*\b(diagram|figure|graph|chart|image|picture|drawing|illustration)',
+            r'\b(?:with|having|containing|including|featuring|showing|displaying|illustrating|depicting|representing|demonstrating|presenting)\b.*\b(diagram|figure|graph|chart|image|picture|drawing|illustration)',
+        ]
+        
+        # Check for any diagram indicators
+        if any(re.search(pattern, text, re.IGNORECASE) for pattern in diagram_indicators):
+            return True
+            
+        # Check for coordinate system references
+        if re.search(r'\b(?:x-?axis|y-?axis|origin|coordinate\s*system|grid|axes|quadrant|abscissa|ordinate)\b', text, re.IGNORECASE):
+            return True
+            
+        # Check for geometric shape references
+        if re.search(r'\b(?:point|line|segment|ray|angle|triangle|square|rectangle|circle|ellipse|polygon|polyhedron|prism|pyramid|cylinder|cone|sphere|cube|rhombus|trapezoid|parallelogram|pentagon|hexagon|octagon|dodecagon|tetrahedron|octahedron|dodecahedron|icosahedron|ellipsoid|hyperboloid|paraboloid|torus)\b', text, re.IGNORECASE):
+            return True
+            
+        return False
+    
+    def __del__(self):
+        """Ensure the PDF document is properly closed."""
+        if hasattr(self, 'doc'):
+            self.doc.close()
+
 
 class QuestionExtractor:
     def __init__(self):
         self.stop_words = set(stopwords.words('english'))
+        self.current_section = ""
+        self.progress_callback = None
+        self.total_pages = 0
+        
+        # Enhanced question patterns with better support for different formats
         self.question_patterns = [
-            r'^\s*(\d+)\.\s*',  # 1. Question
-            r'^\s*([a-z])\)\s*',  # a) Question
-            r'^\s*([A-Z])\)\s*',  # A) Question
-            r'^\s*([ivx]+)\.\s*',  # i. ii. iii. Roman numerals
-            r'^\s*Q\s*(\d+)[\.\:]\s*',  # Q1: Question
-            r'^\s*Question\s*(\d+)[\.\:]\s*',  # Question 1: 
+            # Numbered questions (1., 2., etc.)
+            r'^(\d+)[\.\)\]\}\s]\s*',
+            # Lettered questions (a), b), etc.)
+            r'\(?([a-z])\)\s*',
+            # Roman numerals (i., ii., etc.)
+            r'([ivx]+)[\.\)\s]\s*',
+            # Q1, Q2 or Q1:, Q2:
+            r'[Qq]\s*(\d+)[\.\)\:]\s*',
+            # Question 1, Problem 2, etc.
+            r'(?:Question|Problem|Exercise|Task)\s*(\d+)[\.\)\: ]?\s*',
+            # Section-based numbering (1.1, 1.2, etc.)
+            r'(\d+\.\d+)[\.\)\s]\s*',
+            # Bullet points with numbers or letters
+            r'[•\-*]\s*(\d+|[a-z])\)?\s*'
         ]
-        self.formula_keywords = ['equation', 'formula', 'calculate', 'solve', 'find', 'derive', 'prove']
+        
+        # Keywords that might indicate a question
+        self.question_keywords = [
+            'what', 'when', 'where', 'why', 'how', 'explain', 'describe',
+            'calculate', 'solve', 'find', 'prove', 'show', 'determine',
+            'compare', 'contrast', 'discuss', 'evaluate', 'analyze', 'justify'
+        ]
+        
+        # Formula and math-related keywords
+        self.formula_keywords = [
+            'equation', 'formula', 'calculate', 'solve', 'find', 'derive', 'prove',
+            'compute', 'evaluate', 'simplify', 'factor', 'expand', 'integrate',
+            'differentiate', 'graph', 'plot', 'matrix', 'vector', 'theorem', 'proof'
+        ]
+        
+        # Difficulty indicators
+        self.difficulty_indicators = {
+            'easy': ['define', 'list', 'identify', 'name', 'recall', 'state', 'match'],
+            'medium': ['explain', 'describe', 'summarize', 'classify', 'compare', 'contrast'],
+            'hard': ['analyze', 'evaluate', 'justify', 'critique', 'design', 'formulate', 'prove']
+        }
+    
+    def set_progress_callback(self, callback):
+        """Set a callback function to report progress.
+        
+        The callback should accept the following parameters:
+        - current_page: Current page being processed
+        - total_pages: Total number of pages
+        - message: Optional status message
+        """
+        self.progress_callback = callback
+    
+    def _report_progress(self, current_page, message=None):
+        """Report progress using the callback if available."""
+        if self.progress_callback and self.total_pages > 0:
+            self.progress_callback(current_page, self.total_pages, message)
         
     def process_document(self, document_id):
-        """Main function to process a question document."""
+        """Process a document and extract questions.
+        
+        Args:
+            document_id: ID of the document to process
+            
+        Returns:
+            bool: True if processing was successful, False otherwise
+        """
         document = QuestionDocument.query.get(document_id)
         if not document:
+            app.logger.error(f"Document {document_id} not found")
             return False
             
         try:
-            # Update status to processing
-            document.extraction_status = 'extracting'
-            db.session.commit()
+            app.logger.info(f"Starting extraction for document {document_id}")
+            
+            # Open the PDF to get total pages for progress tracking
+            try:
+                doc = fitz.open(document.file_path)
+                self.total_pages = len(doc)
+                doc.close()
+                app.logger.info(f"Document has {self.total_pages} pages")
+            except Exception as e:
+                app.logger.warning(f"Could not get total pages for document {document_id}: {str(e)}")
+                self.total_pages = 0
+            
+            # Report initial progress
+            self._report_progress(0, "Starting document processing...")
             
             # Extract questions from PDF
-            questions = self.extract_questions_from_pdf(document.file_path)
+            extractor = PDFQuestionExtractor(document.file_path)
             
-            # Process each question
-            for question_data in questions:
-                self.save_question(question_data, document)
+            # Set up progress reporting for the extractor
+            def extraction_progress(page_num, total_pages, message):
+                self._report_progress(page_num, message)
+                
+            extractor.set_progress_callback(extraction_progress)
+            
+            # Extract questions with progress reporting
+            extracted_questions = extractor.extract_questions()
+            
+            # Report progress before saving to database
+            self._report_progress(
+                self.total_pages - 1 if self.total_pages > 0 else 0,
+                f"Extracted {len(extracted_questions)} questions. Saving to database..."
+            )
+            
+            # Save extracted questions to database
+            saved_count = 0
+            for eq in extracted_questions:
+                try:
+                    self.save_question({
+                        'question_number': eq.question_number,
+                        'question_text': eq.question_text,
+                        'page_number': eq.page_number,
+                        'section': eq.section,
+                        'question_type': eq.question_type,
+                        'marks': eq.marks,
+                        'has_formula': eq.has_formula,
+                        'has_diagram': eq.has_diagram,
+                        'metadata': json.dumps(eq.metadata) if hasattr(eq, 'metadata') else None
+                    }, document)
+                    saved_count += 1
+                    
+                    # Update progress every 5 questions
+                    if saved_count % 5 == 0:
+                        self._report_progress(
+                            self.total_pages - 1 if self.total_pages > 0 else 0,
+                            f"Saved {saved_count} of {len(extracted_questions)} questions..."
+                        )
+                        
+                except Exception as save_error:
+                    app.logger.error(f"Error saving question {eq.question_number if hasattr(eq, 'question_number') else 'unknown'}: {str(save_error)}", exc_info=True)
+                    continue  # Continue with next question even if one fails
             
             # Update document status
-            document.extraction_status = 'completed'
-            document.total_questions = len(questions)
-            document.processed_at = datetime.now()
-            db.session.commit()
-            
-            return True
-            
+            try:
+                document.extraction_status = 'completed'
+                document.total_questions = saved_count
+                document.processed_at = datetime.utcnow()
+                db.session.commit()
+                
+                app.logger.info(f"Successfully extracted and saved {saved_count} questions from document {document_id}")
+                return True
+                
+            except Exception as commit_error:
+                app.logger.error(f"Error updating document status: {str(commit_error)}", exc_info=True)
+                db.session.rollback()
+                raise  # Re-raise to be caught by outer exception handler
+                
         except Exception as e:
-            document.extraction_status = 'failed'
-            db.session.commit()
-            print(f"Error processing document {document_id}: {str(e)}")
+            app.logger.error(f"Error processing document {document_id}: {str(e)}", exc_info=True)
+            try:
+                if document:
+                    document.extraction_status = 'failed'
+                    db.session.commit()
+            except Exception as status_error:
+                app.logger.error(f"Error updating document status to failed: {str(status_error)}", exc_info=True)
+                db.session.rollback()
             return False
     
-    def extract_questions_from_pdf(self, file_path):
-        """Extract questions, images, and formulas from PDF."""
-        questions = []
-        doc = fitz.open(file_path)
-        
-        for page_num in range(len(doc)):
-            page = doc.load_page(page_num)
+    def extract_questions_from_pdf(self, pdf_path):
+        """Extract questions from a PDF file."""
+        try:
+            extractor = PDFQuestionExtractor(pdf_path)
+            extracted_questions = extractor.extract_questions()
             
-            # Extract text
-            text = page.get_text()
+            # Convert to list of dictionaries for compatibility
+            return [{
+                'question_number': q.question_number,
+                'question_text': q.question_text,
+                'page_number': q.page_number,
+                'section': q.section,
+                'question_type': q.question_type,
+                'marks': q.marks,
+                'has_formula': q.has_formula,
+                'has_diagram': q.has_diagram
+            } for q in extracted_questions]
             
-            # Extract images from this page
-            page_images = self.extract_images_from_page(page, page_num, file_path)
-            
-            # Split text into potential questions
-            page_questions = self.identify_questions_in_text(text, page_num)
-            
-            # Associate images with questions
-            for question in page_questions:
-                question['images'] = self.associate_images_with_question(
-                    question, page_images, page
-                )
-                questions.append(question)
-        
-        doc.close()
-        return questions
-    
-    def identify_questions_in_text(self, text, page_num):
-        """Identify individual questions in text using patterns."""
-        questions = []
-        lines = text.split('\n')
-        current_question = []
-        question_number = None
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-                
-            # Check if line starts a new question
-            is_new_question = False
-            for pattern in self.question_patterns:
-                match = re.match(pattern, line, re.IGNORECASE)
-                if match:
-                    # Save previous question if exists
-                    if current_question and question_number:
-                        question_text = ' '.join(current_question).strip()
-                        if question_text:
-                            questions.append({
-                                'question_number': question_number,
-                                'question_text': question_text,
-                                'page_number': page_num + 1,
-                                'has_formula': self.detect_formula(question_text),
-                                'difficulty_level': self.estimate_difficulty(question_text),
-                                'marks': self.extract_marks(question_text)
-                            })
-                    
-                    # Start new question
-                    question_number = match.group(1)
-                    current_question = [re.sub(pattern, '', line, flags=re.IGNORECASE).strip()]
-                    is_new_question = True
-                    break
-            
-            if not is_new_question and current_question:
-                current_question.append(line)
-        
-        # Save last question
-        if current_question and question_number:
-            question_text = ' '.join(current_question).strip()
-            if question_text:
-                questions.append({
-                    'question_number': question_number,
-                    'question_text': question_text,
-                    'page_number': page_num + 1,
-                    'has_formula': self.detect_formula(question_text),
-                    'difficulty_level': self.estimate_difficulty(question_text),
-                    'marks': self.extract_marks(question_text)
-                })
-        
-        return questions
-    
-    def extract_images_from_page(self, page, page_num, file_path):
-        """Extract images from a PDF page."""
-        images = []
-        image_list = page.get_images()
-        
-        for img_index, img in enumerate(image_list):
-            try:
-                # Get image data
-                xref = img[0]
-                pix = fitz.Pixmap(page.parent, xref)
-                
-                if pix.n - pix.alpha < 4:  # GRAY or RGB
-                    # Save image
-                    img_filename = f"page_{page_num+1}_img_{img_index+1}.png"
-                    img_dir = os.path.join(os.path.dirname(file_path), 'extracted_images')
-                    os.makedirs(img_dir, exist_ok=True)
-                    img_path = os.path.join(img_dir, img_filename)
-                    pix.save(img_path)
-                    
-                    # Get image position
-                    img_rect = page.get_image_rects(xref)[0] if page.get_image_rects(xref) else None
-                    
-                    images.append({
-                        'path': img_path,
-                        'filename': img_filename,
-                        'position': img_rect,
-                        'page': page_num + 1
-                    })
-                
-                pix = None
-                
-            except Exception as e:
-                print(f"Error extracting image {img_index} from page {page_num}: {str(e)}")
-                continue
-                
-        return images
-    
-    def associate_images_with_question(self, question, page_images, page):
-        """Associate images with questions based on position."""
-        question_images = []
-        # Simple association - could be improved with more sophisticated positioning
-        if page_images:
-            question_images = page_images  # For now, associate all page images
-        return question_images
-    
-    def detect_formula(self, text):
-        """Detect if question contains mathematical formulas."""
-        formula_indicators = [
-            r'[∑∫∂∆√π∞≤≥≠±×÷]',  # Mathematical symbols
-            r'\b(sin|cos|tan|log|ln|exp|sqrt|integral|derivative)\b',  # Mathematical functions
-            r'[a-zA-Z]\^[0-9]',  # Exponents
-            r'\b\d+\s*[a-zA-Z]\b',  # Variables with coefficients
-        ]
-        
-        for pattern in formula_indicators:
-            if re.search(pattern, text, re.IGNORECASE):
-                return True
-                
-        # Check for formula keywords
-        for keyword in self.formula_keywords:
-            if keyword.lower() in text.lower():
-                return True
-                
-        return False
-    
-    def estimate_difficulty(self, text):
-        """Estimate question difficulty based on text analysis."""
-        word_count = len(text.split())
-        
-        # Simple heuristics
-        if word_count < 20:
-            return 'easy'
-        elif word_count < 50:
-            return 'medium'
-        else:
-            return 'hard'
-    
-    def extract_marks(self, text):
-        """Extract marks/points from question text."""
-        # Look for patterns like [5 marks], (10 points), etc.
-        patterns = [
-            r'\[(\d+)\s*marks?\]',
-            r'\((\d+)\s*marks?\)',
-            r'\[(\d+)\s*points?\]',
-            r'\((\d+)\s*points?\)',
-            r'(\d+)\s*marks?',
-            r'(\d+)\s*points?'
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                return int(match.group(1))
-        
-        return 1  # Default marks
+        except Exception as e:
+            app.logger.error(f"Error extracting questions from PDF {pdf_path}: {str(e)}", exc_info=True)
+            return []
     
     def save_question(self, question_data, document):
-        """Save extracted question to database."""
-        question = Question(
-            question_text=question_data['question_text'],
-            question_number=question_data['question_number'],
-            page_number=question_data['page_number'],
-            has_formula=question_data['has_formula'],
-            has_image=len(question_data.get('images', [])) > 0,
-            difficulty_level=question_data['difficulty_level'],
-            marks=question_data['marks'],
-            document_id=document.id,
-            image_paths=json.dumps([img['path'] for img in question_data.get('images', [])])
-        )
-        
-        # Auto-categorize question
-        self.categorize_question(question, document.subject)
-        
-        db.session.add(question)
-        db.session.commit()
+        """Save a question to the database."""
+        try:
+            question = Question(
+                question_number=question_data.get('question_number', ''),
+                question_text=question_data.get('question_text', ''),
+                page_number=question_data.get('page_number', 1),
+                question_type=question_data.get('question_type', 'text'),
+                marks=question_data.get('marks', 1),
+                has_formula=question_data.get('has_formula', False),
+                has_image=question_data.get('has_diagram', False),  # Map has_diagram to has_image
+                document_id=document.id,
+                created_at=datetime.utcnow()
+            )
+            db.session.add(question)
+            db.session.commit()
+            app.logger.debug(f"Saved question {question.id} for document {document.id}")
+            return question
+        except Exception as e:
+            app.logger.error(f"Error saving question for document {document.id}: {str(e)}", exc_info=True)
+            db.session.rollback()
+            return None
     
     def categorize_question(self, question, subject):
         """Automatically categorize question by topic and unit."""

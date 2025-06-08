@@ -6,6 +6,13 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .pytype/
+.python-version
+.python-version.*
+*.pyo
+*.pyd
+*.pyi
+*.so
+.Python
 
 # Virtual Environments
 venv/
@@ -14,6 +21,7 @@ ENV/
 env/
 venv.bak/
 ENV.bak/
+.venv*/
 
 # Distribution / Packaging
 build/
@@ -69,6 +77,22 @@ instance/
 *.sqlite
 *.sqlite3
 *.sqlite3-journal
+*.db-journal
+*.sql
+*.sql.gz
+*.frm
+*.myd
+*.myi
+*.ibd
+*.ibdata1
+*.ibdata2
+*.ib_logfile*
+*.sock
+*.sock.lock
+*.sock.lock.*
+*.sock.*
+*.sock
+*.pid
 
 # Logs
 logs/
@@ -76,6 +100,17 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+logs/*.log
+*.log.*
+log/
+*.log.*.gz
+*.log.*.zip
+*.log.*.lzma
+*.log.*.xz
+*.log.*.bz2
+*.log.*.zst
+*.log.*.lz4
+*.log.*.lz
 
 # OS generated files
 .DS_Store
@@ -87,8 +122,35 @@ ehthumbs.db
 Thumbs.db
 
 # Application specific
-uploads/
+uploads/*
+!uploads/.gitkeep
 __pycache__/
+instance/
+.webassets-cache
+.cache/
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.pytype/
+.ropeproject/
+.settings/
+.idea/
+.vscode/
+*.code-workspace
+*.sublime-workspace
+*.sublime-project
+.project
+.pydevproject
+.settings/
+.idea/
+.vscode/
+*.code-workspace
+*.sublime-workspace
+*.sublime-project
+.project
+.pydevproject
+.settings/
 
 # Celery
 celerybeat-schedule
@@ -96,6 +158,18 @@ celerybeat.pid
 
 # Jupyter Notebook
 .ipynb_checkpoints/
+.ipynb
+.ipynb_checkpoints/*
+!*.ipynb
+.ipynb_checkpoints/
+.ipynb_checkpoints/*
+!*.ipynb_checkpoints/.gitkeep
+.ipynb_checkpoints/
+.ipynb_checkpoints/*
+!*.ipynb_checkpoints/.gitkeep
+.ipynb_checkpoints/
+.ipynb_checkpoints/*
+!*.ipynb_checkpoints/.gitkeep
 
 # IPython
 profile_default/

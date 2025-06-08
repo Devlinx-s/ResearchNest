@@ -65,10 +65,10 @@
                             {{ document.uploaded_at.strftime('%Y-%m-%d') }}
                         </small>
                         <div class="btn-group btn-group-sm">
-                            <a href="{{ url_for('question_document_detail', id=document.id) }}" class="btn btn-outline-primary">
+                            <a href="{{ url_for('question_document_detail', document_id=document.id) }}" class="btn btn-outline-primary">
                                 <i data-feather="eye" class="me-1"></i>View
                             </a>
-                            <a href="{{ url_for('download_question_document', id=document.id) }}" class="btn btn-outline-secondary">
+                            <a href="{{ url_for('download_question_document', document_id=document.id) }}" class="btn btn-outline-secondary">
                                 <i data-feather="download" class="me-1"></i>Download
                             </a>
                         </div>

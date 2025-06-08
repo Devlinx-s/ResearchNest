@@ -2,6 +2,10 @@
 
 {% block title %}Upload Question Document - ResearchNest{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/question_upload.css') }}">
+{% endblock %}
+
 {% block content %}
 <div class="container my-4">
     <div class="row justify-content-center">
@@ -13,7 +17,7 @@
                     </h4>
                 </div>
                 <div class="card-body">
-                    <form method="POST" enctype="multipart/form-data" id="questionUploadForm">
+                    <form method="POST" enctype="multipart/form-data" id="questionUploadForm" onsubmit="return handleFormSubmit(this);">
                         {{ form.hidden_tag() }}
                         
                         <!-- File Upload -->
@@ -22,7 +26,7 @@
                                 <i data-feather="file" class="me-1"></i>PDF File *
                             </label>
                             <div class="upload-area border rounded p-4 text-center" id="uploadArea">
-                                {{ form.file(class="form-control", style="display: none;", accept=".pdf") }}
+                                {{ form.file(class="form-control hidden-file-input", accept=".pdf") }}
                                 <div class="upload-placeholder">
                                     <i data-feather="upload-cloud" class="display-4 text-muted mb-3"></i>
                                     <p class="mb-2">Drag and drop your question document here, or <strong>click to browse</strong></p>
@@ -98,7 +102,10 @@
                             <a href="{{ url_for('question_documents') }}" class="btn btn-outline-secondary">
                                 <i data-feather="arrow-left" class="me-1"></i>Cancel
                             </a>
-                            {{ form.submit(class="btn btn-primary px-4") }}
+                            <button type="submit" class="btn btn-primary px-4" id="submitButton">
+                                <span class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+                                <span class="button-text">Upload Document</span>
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -197,19 +204,31 @@ document.addEventListener('DOMContentLoaded', function() {
             displayFile(file);
         } else {
             alert('Please select a PDF file.');
+            clearFile();
         }
     }
 
     function displayFile(file) {
-        placeholder.style.display = 'none';
+        // Create a new DataTransfer object to hold the file
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(file);
+        
+        // Set the files property of the file input
+        fileInput.files = dataTransfer.files;
+        
+        // Update the UI
+        uploadArea.querySelector('.filename').textContent = file.name;
+        uploadArea.querySelector('.file-size').textContent = formatFileSize(file.size);
+        placeholder.classList.add('d-none');
         fileInfo.classList.remove('d-none');
-        fileInfo.querySelector('.filename').textContent = file.name;
-        fileInfo.querySelector('.file-size').textContent = `(${formatFileSize(file.size)})`;
+        
+        // Log for debugging
+        console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
     }
 
     function clearFile() {
         fileInput.value = '';
-        placeholder.style.display = 'block';
+        placeholder.classList.remove('d-none');
         fileInfo.classList.add('d-none');
     }
 
@@ -220,6 +239,29 @@ document.addEventListener('DOMContentLoaded', function() {
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
+
+    // Handle form submission with loading state
+    function handleFormSubmit(form) {
+        const submitButton = document.getElementById('submitButton');
+        const spinner = submitButton.querySelector('.spinner-border');
+        const buttonText = submitButton.querySelector('.button-text');
+        
+        // Validate file is selected
+        if (!fileInput.files || fileInput.files.length === 0) {
+            alert('Please select a PDF file to upload.');
+            return false;
+        }
+        
+        // Show loading state
+        submitButton.disabled = true;
+        spinner.classList.remove('d-none');
+        buttonText.textContent = 'Uploading...';
+        
+        // Allow the form to submit
+        return true;
+    }
 });
 </script>
+
+
 {% endblock %}
