@@ -6,7 +6,8 @@
         <!-- Dashboard for logged-in users -->
         <div class="row mb-4">
             <div class="col-12">
-                <h1 class="display-6 mb-3">Welcome back, {{ current_user.first_name or current_user.email.split('@')[0] }}!</h1>
+                <h1 class="display-6 mb-3">Welcome back, {{ current_user.first_name or current_user.email.split('@')[0] }}! <span class="text-muted">👋</span></h1>
+                <p class="text-muted">Here's what's happening with your research today</p>
             </div>
         </div>
 
@@ -44,18 +45,24 @@
         <!-- Quick Actions -->
         <div class="row mb-4">
             <div class="col-12">
-                <div class="card">
+                <div class="card shadow-sm">
                     <div class="card-body">
-                        <h5 class="card-title">Quick Actions</h5>
-                        <div class="d-flex flex-wrap gap-2">
-                            <a href="{{ url_for('upload_paper') }}" class="btn btn-primary">
-                                <i data-feather="upload" class="me-1"></i>Upload Paper
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">Quick Actions</h5>
+                            <small><a href="{{ url_for('search') }}" class="text-decoration-none">View all papers <i data-feather="arrow-right" class="feather-sm"></i></a></small>
+                        </div>
+                        <div class="d-flex flex-wrap gap-3">
+                            <a href="{{ url_for('upload_paper') }}" class="btn btn-primary px-4">
+                                <i data-feather="upload" class="me-2"></i>Upload Paper
                             </a>
-                            <a href="{{ url_for('search') }}" class="btn btn-outline-secondary">
-                                <i data-feather="search" class="me-1"></i>Search Papers
+                            <a href="{{ url_for('search') }}" class="btn btn-outline-primary px-4">
+                                <i data-feather="search" class="me-2"></i>Search Papers
                             </a>
-                            <a href="{{ url_for('my_papers') }}" class="btn btn-outline-secondary">
-                                <i data-feather="file-text" class="me-1"></i>My Papers
+                            <a href="{{ url_for('my_papers') }}" class="btn btn-outline-secondary px-4">
+                                <i data-feather="file-text" class="me-2"></i>My Papers
+                            </a>
+                            <a href="{{ url_for('questions.upload_questions') }}" class="btn btn-outline-success px-4">
+                                <i data-feather="help-circle" class="me-2"></i>Extract Questions
                             </a>
                         </div>
                     </div>
@@ -66,11 +73,14 @@
         <!-- Recent Papers and Popular Papers -->
         <div class="row">
             <div class="col-lg-6 mb-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i data-feather="clock" class="me-2"></i>Recent Papers
-                        </h5>
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i data-feather="clock" class="me-2 text-primary"></i>Recent Papers
+                            </h5>
+                            <a href="{{ url_for('search', sort='newest') }}" class="btn btn-sm btn-link text-decoration-none">View All</a>
+                        </div>
                     </div>
                     <div class="card-body">
                         {% if recent_papers %}
@@ -96,11 +106,14 @@
             </div>
 
             <div class="col-lg-6 mb-4">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h5 class="card-title mb-0">
-                            <i data-feather="trending-up" class="me-2"></i>Popular Papers
-                        </h5>
+                <div class="card h-100 shadow-sm">
+                    <div class="card-header bg-white border-bottom-0 pt-3 pb-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i data-feather="trending-up" class="me-2 text-primary"></i>Trending Now
+                            </h5>
+                            <a href="{{ url_for('search', sort='popular') }}" class="btn btn-sm btn-link text-decoration-none">View All</a>
+                        </div>
                     </div>
                     <div class="card-body">
                         {% if popular_papers %}
@@ -127,78 +140,112 @@
         </div>
 
     {% else %}
-        <!-- Landing page for anonymous users -->
-        <div class="row min-vh-100 align-items-center">
-            <div class="col-lg-6 mb-5">
-                <h1 class="display-4 fw-bold mb-4">Welcome to ResearchNest</h1>
+        <!-- Hero Section -->
+        <div class="row min-vh-75 align-items-center py-5 gx-5">
+            <!-- Left Column: Hero Content -->
+            <div class="col-lg-7 mb-5">
+                <span class="badge bg-primary bg-opacity-10 text-primary mb-3 px-3 py-2">🚀 New: AI-Powered Research Tools</span>
+                <h1 class="display-4 fw-bold mb-4">Discover & Share Research <span class="text-primary">Effortlessly</span></h1>
                 <p class="lead mb-4">
-                    The premier academic research archive and discovery platform. 
-                    Upload, search, and discover groundbreaking research papers 
-                    from students and researchers worldwide.
+                    ResearchNest is the premier platform for academic research. 
+                    Upload your papers, extract questions, and collaborate with researchers worldwide.
+                    Join our community of scholars today.
                 </p>
                 
-                <div class="d-flex flex-column flex-sm-row gap-3 mb-4">
-                    <a href="{{ url_for('signup') }}" class="btn btn-primary btn-lg">
-                        <i data-feather="user-plus" class="me-2"></i>Create Account
+                <div class="d-flex flex-wrap gap-3 mb-4">
+                    <a href="{{ url_for('signup') }}" class="btn btn-primary btn-lg px-4">
+                        <i data-feather="user-plus" class="me-2"></i>Get Started - It's Free
                     </a>
-                    <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">
+                    <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg px-4">
                         <i data-feather="log-in" class="me-2"></i>Sign In
                     </a>
-                    <a href="{{ url_for('search') }}" class="btn btn-outline-secondary btn-lg">
-                        <i data-feather="search" class="me-2"></i>Browse Papers
-                    </a>
                 </div>
 
-                <div class="alert alert-info">
-                    <i data-feather="info" class="me-2"></i>
-                    <strong>Sign in required:</strong> To upload papers, download PDFs, or access your personal dashboard, please sign in with your account.
-                </div>
-
-                <!-- Features -->
-                <div class="row">
-                    <div class="col-sm-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i data-feather="upload" class="me-3 mt-1 text-primary"></i>
-                            <div>
-                                <h6 class="mb-1">Easy Upload</h6>
-                                <small class="text-muted">Upload PDF research papers with automatic metadata extraction</small>
-                            </div>
-                        </div>
+                <div class="d-flex align-items-center text-muted">
+                    <div class="d-flex me-3">
+                        <img src="https://ui-avatars.com/api/?name=John+Doe&background=0d6efd&color=fff&size=32" class="rounded-circle border border-2 border-white" style="margin-left: -8px;" width="32" height="32">
+                        <img src="https://ui-avatars.com/api/?name=Jane+Smith&background=0d6efd&color=fff&size=32" class="rounded-circle border border-2 border-white" style="margin-left: -8px;" width="32" height="32">
+                        <img src="https://ui-avatars.com/api/?name=Alex+Johnson&background=0d6efd&color=fff&size=32" class="rounded-circle border border-2 border-white" style="margin-left: -8px;" width="32" height="32">
                     </div>
-                    <div class="col-sm-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i data-feather="search" class="me-3 mt-1 text-primary"></i>
-                            <div>
-                                <h6 class="mb-1">Advanced Search</h6>
-                                <small class="text-muted">Filter by department, year, keywords, and more</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-sm-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i data-feather="bar-chart-2" class="me-3 mt-1 text-primary"></i>
-                            <div>
-                                <h6 class="mb-1">Analytics</h6>
-                                <small class="text-muted">Track downloads and discover trending research topics</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-sm-6 mb-3">
-                        <div class="d-flex align-items-start">
-                            <i data-feather="users" class="me-3 mt-1 text-primary"></i>
-                            <div>
-                                <h6 class="mb-1">Community</h6>
-                                <small class="text-muted">Connect with researchers and discover collaborative work</small>
-                            </div>
+                    <div>
+                        <span class="fw-medium">Trusted by 1,000+ researchers</span>
+                        <div class="text-warning">
+                            <i data-feather="star" class="feather-sm fill"></i>
+                            <i data-feather="star" class="feather-sm fill"></i>
+                            <i data-feather="star" class="feather-sm fill"></i>
+                            <i data-feather="star" class="feather-sm fill"></i>
+                            <i data-feather="star" class="feather-sm fill"></i>
+                            <span class="text-muted ms-1">4.9/5</span>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <div class="col-lg-6 text-center">
-                <div class="position-relative">
-                    <!-- Academic themed SVG illustration -->
-                    <svg width="400" height="300" viewBox="0 0 400 300" class="img-fluid">
+            <!-- Right Column: Key Features -->
+            <div class="col-lg-5">
+                <div class="sticky-top" style="top: 2rem;">
+                    <div class="ps-lg-4">
+                        <h2 class="h4 fw-bold mb-4">Key Features</h2>
+                        <div class="d-flex flex-column gap-3">
+                            <div class="d-flex align-items-start">
+                                <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center mt-1 me-3" style="width: 36px; height: 36px; flex-shrink: 0;">
+                                    <i data-feather="search" class="feather-sm"></i>
+                                </div>
+                                <div>
+                                    <h3 class="h6 mb-1">Smart Search</h3>
+                                    <p class="small text-muted mb-0">AI-powered search for papers and questions</p>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-start">
+                                <div class="bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center mt-1 me-3" style="width: 36px; height: 36px; flex-shrink: 0;">
+                                    <i data-feather="book-open" class="feather-sm"></i>
+                                </div>
+                                <div>
+                                    <h3 class="h6 mb-1">Question Bank</h3>
+                                    <p class="small text-muted mb-0">Access thousands of research questions</p>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-start">
+                                <div class="bg-warning bg-opacity-10 text-warning rounded-circle d-flex align-items-center justify-content-center mt-1 me-3" style="width: 36px; height: 36px; flex-shrink: 0;">
+                                    <i data-feather="bar-chart-2" class="feather-sm"></i>
+                                </div>
+                                <div>
+                                    <h3 class="h6 mb-1">Progress Tracking</h3>
+                                    <p class="small text-muted mb-0">Monitor your research journey</p>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex align-items-start">
+                                <div class="bg-info bg-opacity-10 text-info rounded-circle d-flex align-items-center justify-content-center mt-1 me-3" style="width: 36px; height: 36px; flex-shrink: 0;">
+                                    <i data-feather="users" class="feather-sm"></i>
+                                </div>
+                                <div>
+                                    <h3 class="h6 mb-1">Collaboration</h3>
+                                    <p class="small text-muted mb-0">Share with your research team</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Moved CTA Section -->
+            <div class="row justify-content-center mt-5">
+                <div class="col-12 text-center">
+                    <h3 class="h4 mb-3">Transform Your Research Workflow</h3>
+                    <a href="{{ url_for('signup') }}" class="btn btn-primary btn-lg px-5 py-3 fw-bold">
+                        <i data-feather="arrow-right" class="me-2"></i> Get Started Now
+                    </a>
+                    <p class="small text-muted mt-3 mb-0">No credit card required • Get started in seconds</p>
+                </div>
+            </div>
+            
+            <div class="col-lg-5 mt-5">
+               
+                
+
+                    
                         <!-- Books stack -->
                         <rect x="80" y="200" width="240" height="20" rx="2" fill="var(--bs-primary)" opacity="0.8"/>
                         <rect x="90" y="180" width="220" height="20" rx="2" fill="var(--bs-success)" opacity="0.8"/>
