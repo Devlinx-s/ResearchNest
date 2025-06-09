@@ -117,11 +117,14 @@
                         </div>
 
                         <!-- Submit Button -->
-                        <div class="d-flex justify-content-between align-items-center">
-                            <a href="{{ url_for('question_documents') }}" class="btn btn-outline-secondary">
-                                <i data-feather="arrow-left" class="me-1"></i>Back
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                            <a href="{{ url_for('question_documents') }}" class="btn btn-outline-secondary me-md-2">
+                                <i data-feather="x" class="me-1"></i> Cancel
                             </a>
-                            {{ form.submit(class="btn btn-success px-4") }}
+                            <button type="button" id="previewBtn" class="btn btn-outline-primary me-md-2">
+                                <i data-feather="eye" class="me-1"></i> Preview
+                            </button>
+                            {{ form.submit(class="btn btn-primary") }}
                         </div>
                     </form>
                 </div>
@@ -254,6 +257,197 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Initial validation
     validatePercentages();
+
+    // Handle generate from preview button
+    document.getElementById('generateFromPreview').addEventListener('click', function() {
+        console.log('Generate from preview button clicked');
+        previewModal.hide();
+        generatePaperForm.submit();
+    });
+
+    // Preview functionality
+    const previewBtn = document.getElementById('previewBtn');
+    const previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+    const previewContent = document.getElementById('previewContent');
+    const generatePaperForm = document.getElementById('generatePaperForm');
+    const previewSpinner = document.getElementById('previewSpinner');
+    const previewError = document.getElementById('previewError');
+
+    console.log('Preview button click handler attached');
+    
+    previewBtn.addEventListener('click', async function() {
+        console.log('Preview button clicked');
+        
+        if (!generatePaperForm.checkValidity()) {
+            console.log('Form validation failed');
+            generatePaperForm.classList.add('was-validated');
+            return;
+        }
+        console.log('Form is valid');
+
+        // Show loading state
+        previewContent.innerHTML = '';
+        previewError.classList.add('d-none');
+        previewSpinner.classList.remove('d-none');
+        previewModal.show();
+        console.log('Showing preview modal with loading state');
+
+        try {
+            const formData = new FormData(generatePaperForm);
+            formData.append('preview', 'true');
+            console.log('FormData created');
+            
+            // Add CSRF token
+            const csrfInput = document.querySelector('input[name="csrf_token"]');
+            if (!csrfInput) {
+                throw new Error('CSRF token not found in form');
+            }
+            const csrfToken = csrfInput.value;
+            formData.append('csrf_token', csrfToken);
+            console.log('CSRF token added');
+
+            const url = '{{ url_for("generate_question_paper") }}';
+            console.log('Making request to:', url);
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json'
+                },
+                credentials: 'same-origin'  // Important for sending cookies
+            });
+            console.log('Request completed, status:', response.status);
+
+            // Read the response once and store it
+            let data;
+            try {
+                data = await response.json();
+                console.log('Response data:', data);
+                
+                if (!response.ok) {
+                    console.error('Response error:', data);
+                    const errorMessage = data.error || data.message || response.statusText;
+                    throw new Error(`Server error (${response.status}): ${errorMessage}`);
+                }
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Display the preview
+                console.log('Displaying preview');
+                previewContent.innerHTML = data.preview_html;
+            } catch (e) {
+                console.error('Error processing response:', e);
+                if (!data) {
+                    const errorText = await response.text().catch(() => 'Unknown error');
+                    throw new Error(`Failed to parse server response: ${errorText}`);
+                }
+                throw e; // Re-throw the original error if we already have data
+            }
+        } catch (error) {
+            console.error('Preview error:', error);
+            previewError.textContent = 'Error generating preview: ' + error.message;
+            previewError.classList.remove('d-none');
+        } finally {
+            previewSpinner.classList.add('d-none');
+        }
+    });
 });
+</script>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewModalLabel">Question Paper Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="previewSpinner" class="text-center my-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading preview...</span>
+                    </div>
+                    <p class="mt-2">Generating preview...</p>
+                </div>
+                <div id="previewError" class="alert alert-danger d-none" role="alert"></div>
+                <div id="previewContent" class="p-3" style="background-color: #fff; border: 1px solid #dee2e6; border-radius: 0.25rem;">
+                    <!-- Preview content will be inserted here -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="generateFromPreview">
+                    <i data-feather="file-text" class="me-1"></i> Generate Paper
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Style the preview to match PDF output */
+    #previewContent {
+        font-family: 'Helvetica', Arial, sans-serif;
+        line-height: 1.6;
+    }
+    #previewContent h1, 
+    #previewContent h2, 
+    #previewContent h3, 
+    #previewContent h4, 
+    #previewContent h5, 
+    #previewContent h6 {
+        color: #2c3e50;
+        margin-top: 1.5rem;
+        margin-bottom: 1rem;
+    }
+    #previewContent .question {
+        margin-bottom: 1.5rem;
+        page-break-inside: avoid;
+    }
+    #previewContent .question-text {
+        font-weight: 500;
+    }
+    #previewContent .question-meta {
+        font-size: 0.9em;
+        color: #6c757d;
+        margin-bottom: 0.5rem;
+    }
+    #previewContent .instructions {
+        background-color: #f8f9fa;
+        border-left: 4px solid #3498db;
+        padding: 1rem;
+        margin: 1rem 0;
+    }
+    #previewContent table {
+        width: 100%;
+        margin-bottom: 1rem;
+        border-collapse: collapse;
+    }
+    #previewContent table, 
+    #previewContent th, 
+    #previewContent td {
+        border: 1px solid #dee2e6;
+    }
+    #previewContent th, 
+    #previewContent td {
+        padding: 0.75rem;
+        vertical-align: top;
+    }
+    #previewContent th {
+        background-color: #f8f9fa;
+        text-align: left;
+    }
+</style>
+
+<script>
+    // Handle generate from preview button
+    document.getElementById('generateFromPreview').addEventListener('click', function() {
+        previewModal.hide();
+        generatePaperForm.submit();
+    });
 </script>
 {% endblock %}

@@ -1041,8 +1041,11 @@ def download_question_document(document_id):
 @app.route('/generate-paper', methods=['GET', 'POST'])
 @require_login
 def generate_question_paper():
-    """Generate a custom question paper."""
+    """Generate a custom question paper or return a preview."""
     form = GenerateQuestionPaperForm()
+    
+    # Check if this is a preview request
+    is_preview = request.form.get('preview') == 'true' and request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     
     if form.validate_on_submit():
         # Generate question paper
@@ -1054,38 +1057,96 @@ def generate_question_paper():
             'hard': form.hard_percentage.data / 100.0
         }
         
-        result = extractor.generate_question_paper(
-            subject_id=form.subject_id.data,
-            unit_ids=form.unit_ids.data if form.unit_ids.data else None,
-            topic_ids=form.topic_ids.data if form.topic_ids.data else None,
-            total_marks=form.total_marks.data,
-            difficulty_distribution=difficulty_distribution
-        )
+        # For preview, we'll generate the questions but not save the PDF
+        if is_preview:
+            try:
+                current_app.logger.info(f'Starting question selection for preview. Subject ID: {form.subject_id.data}')
+                
+                # Generate questions without creating the PDF
+                questions = extractor.select_questions(
+                    subject_id=form.subject_id.data,
+                    unit_ids=form.unit_ids.data if form.unit_ids.data else None,
+                    topic_ids=form.topic_ids.data if form.topic_ids.data else None,
+                    total_marks=form.total_marks.data,
+                    difficulty_distribution=difficulty_distribution
+                )
+                
+                current_app.logger.info(f'Selected {len(questions)} questions for preview')
+                
+                # Get subject and units for the preview
+                subject = Subject.query.get(form.subject_id.data)
+                units = Unit.query.filter(Unit.id.in_(form.unit_ids.data)).all() if form.unit_ids.data else None
+                
+                if not subject:
+                    raise ValueError(f'Subject with ID {form.subject_id.data} not found')
+                
+                # Get current timestamp
+                from datetime import datetime
+                
+                # Render the preview HTML
+                html = render_template('questions/paper_preview.html',
+                    title=form.title.data,
+                    subject=subject,
+                    units=units,
+                    questions=questions,
+                    total_marks=form.total_marks.data,
+                    duration_minutes=form.duration_minutes.data,
+                    difficulty_distribution=difficulty_distribution,
+                    now=datetime.utcnow()
+                )
+                
+                return jsonify({'preview_html': html})
+                
+            except Exception as e:
+                current_app.logger.exception('Error generating preview')
+                return jsonify({
+                    'error': 'Failed to generate preview',
+                    'message': str(e),
+                    'type': type(e).__name__
+                }), 500
         
-        if result:
-            filename, file_path = result
-            
-            # Save generated paper record
-            paper = GeneratedQuestionPaper(
-                title=form.title.data,
-                subject_id=form.subject_id.data,
-                unit_ids=json.dumps(form.unit_ids.data),
-                topic_ids=json.dumps(form.topic_ids.data),
-                total_marks=form.total_marks.data,
-                duration_minutes=form.duration_minutes.data,
-                filename=filename,
-                file_path=file_path,
-                generated_by=current_user.id
-            )
-            
-            db.session.add(paper)
-            db.session.commit()
-            
-            flash('Question paper generated successfully!', 'success')
-            return redirect(url_for('download_generated_paper', id=paper.id))
+        # For actual PDF generation
         else:
-            flash('Unable to generate question paper. Please check your selection criteria.', 'error')
+            try:
+                result = extractor.generate_question_paper(
+                    subject_id=form.subject_id.data,
+                    unit_ids=form.unit_ids.data if form.unit_ids.data else None,
+                    topic_ids=form.topic_ids.data if form.topic_ids.data else None,
+                    total_marks=form.total_marks.data,
+                    difficulty_distribution=difficulty_distribution
+                )
+                
+                if result:
+                    filename, file_path = result
+                    
+                    # Save generated paper record
+                    paper = GeneratedQuestionPaper(
+                        title=form.title.data,
+                        subject_id=form.subject_id.data,
+                        unit_ids=json.dumps(form.unit_ids.data) if form.unit_ids.data else None,
+                        topic_ids=json.dumps(form.topic_ids.data) if form.topic_ids.data else None,
+                        total_marks=form.total_marks.data,
+                        duration_minutes=form.duration_minutes.data,
+                        filename=filename,
+                        file_path=file_path,
+                        generated_by=current_user.id
+                    )
+                    
+                    db.session.add(paper)
+                    db.session.commit()
+                    
+                    flash('Question paper generated successfully!', 'success')
+                    return redirect(url_for('download_generated_paper', id=paper.id))
+                else:
+                    flash('Unable to generate question paper. Please check your selection criteria.', 'error')
+            except Exception as e:
+                current_app.logger.exception('Error generating question paper')
+                flash(f'Error generating question paper: {str(e)}', 'error')
     
+    # If it's an AJAX request but not a preview, return error
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({'error': 'Invalid request'}), 400
+        
     return render_template('questions/generate.html', form=form)
 
 @app.route('/generated-papers/<int:id>/download')

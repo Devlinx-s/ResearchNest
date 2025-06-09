@@ -1,0 +1,133 @@
+<!-- paper_preview.html -->
+<div class="question-paper-preview">
+    <div class="text-center mb-4">
+        <h2 class="mb-1">{{ title }}</h2>
+        <div class="text-muted mb-3">{{ subject.name }}</div>
+    </div>
+
+    <!-- Paper Metadata -->
+    <div class="mb-4">
+        <table class="table table-bordered">
+            <tbody>
+                <tr>
+                    <th class="bg-light" style="width: 30%;">Subject</th>
+                    <td>{{ subject.name }}</td>
+                </tr>
+                {% if units %}
+                <tr>
+                    <th class="bg-light">Unit(s)</th>
+                    <td>{{ units|map(attribute='name')|join(', ') }}</td>
+                </tr>
+                {% endif %}
+                <tr>
+                    <th class="bg-light">Total Marks</th>
+                    <td>{{ total_marks }}</td>
+                </tr>
+                <tr>
+                    <th class="bg-light">Time Allowed</th>
+                    <td>{{ (duration_minutes // 60) }} hours{% if duration_minutes % 60 != 0 %} {{ duration_minutes % 60 }} minutes{% endif %}</td>
+                </tr>
+                <tr>
+                    <th class="bg-light">Difficulty</th>
+                    <td>
+                        Easy: {{ (difficulty_distribution.easy * 100)|int }}%, 
+                        Medium: {{ (difficulty_distribution.medium * 100)|int }}%, 
+                        Hard: {{ (difficulty_distribution.hard * 100)|int }}%
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Instructions -->
+    <div class="instructions mb-4 p-3 bg-light border-start border-primary">
+        <h5 class="mb-2">Instructions:</h5>
+        <ol class="mb-0">
+            <li>Answer all questions.</li>
+            <li>Write your answers in the answer booklet provided.</li>
+            <li>All questions carry equal marks unless otherwise stated.</li>
+            <li>Draw neat diagrams wherever necessary.</li>
+            <li>Assume suitable data if necessary.</li>
+            <li>Total time: {{ (duration_minutes // 60) }} hours | Total marks: {{ total_marks }}</li>
+        </ol>
+    </div>
+
+    <!-- Questions -->
+    <div class="questions">
+        {% for question in questions %}
+        <div class="question mb-4">
+            {% if question.unit or question.topic %}
+            <div class="question-meta text-muted small mb-1">
+                {% if question.unit %}{{ question.unit.name }}{% if question.topic %} | {% endif %}{% endif %}
+                {% if question.topic %}{{ question.topic.name }}{% endif %}
+            </div>
+            {% endif %}
+            <div class="question-text mb-2">
+                <strong>Q{{ loop.index }}.</strong> {{ question.question_text|safe }}
+            </div>
+            {% if question.marks %}
+            <div class="text-end fw-bold">[{{ question.marks }} marks]</div>
+            {% endif %}
+            <hr class="my-3">
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-muted mt-5 pt-3 border-top">
+        <small>Generated on {{ now.strftime('%Y-%m-%d at %H:%M') if now else 'N/A' }} | ResearchNest Question Bank System</small>
+    </div>
+</div>
+
+<style>
+.question-paper-preview {
+    font-family: 'Helvetica', Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    max-width: 100%;
+    overflow-x: auto;
+}
+.question-paper-preview h2 {
+    color: #2c3e50;
+    font-weight: 600;
+    margin-bottom: 1rem;
+}
+.question-paper-preview .instructions {
+    background-color: #f8f9fa;
+    border-left: 4px solid #3498db;
+    padding: 1rem !important;
+    border-radius: 0.25rem;
+    margin: 1.5rem 0;
+}
+.question-paper-preview .question-text {
+    font-size: 1.05rem;
+}
+.question-paper-preview table {
+    width: 100%;
+    margin-bottom: 1.5rem;
+    border-collapse: collapse;
+    background-color: #fff;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    border-radius: 0.25rem;
+    overflow: hidden;
+}
+.question-paper-preview table th {
+    background-color: #f1f5f9;
+    color: #1e293b;
+    font-weight: 600;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    border: 1px solid #e2e8f0;
+}
+.question-paper-preview table td {
+    padding: 0.75rem 1rem;
+    border: 1px solid #e2e8f0;
+    vertical-align: top;
+}
+.question-paper-preview table tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+.question-paper-preview table tr:hover {
+    background-color: #f1f5f9;
+}
+</style>

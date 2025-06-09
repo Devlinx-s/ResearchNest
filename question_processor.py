@@ -1002,44 +1002,49 @@ class QuestionExtractor:
         meta_data = []
         
         if subject:
-            meta_data.append(['<b>Subject</b>', subject.name])
+            meta_data.append(['Subject', subject.name])
             
             # Add units if specified
             if unit_ids:
                 units = Unit.query.filter(Unit.id.in_(unit_ids)).all()
                 if units:
                     unit_names = ", ".join([unit.name for unit in units])
-                    meta_data.append(['<b>Unit(s)</b>', unit_names])
+                    meta_data.append(['Unit(s)', unit_names])
             
             # Add topics if specified
             if topic_ids:
                 topics = Topic.query.filter(Topic.id.in_(topic_ids)).all()
                 if topics:
                     topic_names = ", ".join([topic.name for topic in topics])
-                    meta_data.append(['<b>Topic(s)</b>', topic_names])
+                    meta_data.append(['Topic(s)', topic_names])
         
         # Add paper details
         meta_data.extend([
-            ['<b>Total Marks</b>', str(total_marks)],
-            ['<b>Time Allowed</b>', '3 hours'],
+            ['Total Marks', str(total_marks)],
+            ['Time Allowed', '3 hours'],
         ])
         
         # Add difficulty distribution if available
         if difficulty_distribution:
-            difficulty_text = ", ".join([f"{k.title()}: {v*100:.0f}%" for k, v in difficulty_distribution.items()])
-            meta_data.append(['<b>Difficulty</b>', difficulty_text])
+            easy_pct = int(difficulty_distribution['easy'] * 100)
+            medium_pct = int(difficulty_distribution['medium'] * 100)
+            hard_pct = int(difficulty_distribution['hard'] * 100)
+            difficulty_text = f"Easy: {easy_pct}%, Medium: {medium_pct}%, Hard: {hard_pct}%"
+            meta_data.append(['Difficulty', difficulty_text])
         
-        # Create and style the table
-        meta_table = Table(meta_data, colWidths=[100, 400], hAlign='CENTER')
+        # Create table for metadata with styling
+        meta_table = Table(meta_data, colWidths=[150, 350])
         meta_table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
-            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#f8f9fa')),  # Light gray for header column
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#6c757d')),  # Dark gray text for header
+            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),  # Bold for header column
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('ALIGN', (0, 0), (0, -1), 'RIGHT'),  # Right align labels
-            ('ALIGN', (1, 0), (1, -1), 'LEFT'),   # Left align values
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.HexColor('#2c3e50')),
+            ('GRID', (0, 0), (-1, -1), 1, colors.HexColor('#dee2e6')),  # Light border
             ('LEFTPADDING', (0, 0), (0, -1), 0),
             ('RIGHTPADDING', (1, 0), (1, -1), 0),
         ]))
@@ -1077,15 +1082,6 @@ class QuestionExtractor:
         for i, question in enumerate(questions, 1):
             # Create a styled question number and text
             question_text = f"<b>Q.{i}</b> {question.question_text} <font color='#7f8c8d'><i>[{question.marks} Mark{'s' if question.marks > 1 else ''}]</i></font>"
-            
-            # Add difficulty indicator
-            if hasattr(question, 'difficulty_level') and question.difficulty_level:
-                diff_color = {
-                    'easy': '#27ae60',
-                    'medium': '#f39c12',
-                    'hard': '#e74c3c'
-                }.get(question.difficulty_level.lower(), '#7f8c8d')
-                question_text += f" <font color='{diff_color}'>({question.difficulty_level.title()})</font>"
             
             # Add the question to the story
             story.append(Paragraph(question_text, question_style))
@@ -1139,6 +1135,7 @@ class QuestionExtractor:
         return filename, file_path
     def select_questions(self, subject_id, unit_ids, topic_ids, total_marks, difficulty_distribution):
         """Select questions based on criteria."""
+        from flask import current_app
         from sqlalchemy import or_
         
         # Start building the query
@@ -1160,12 +1157,12 @@ class QuestionExtractor:
         all_questions = query.all()
         
         if not all_questions:
-            app.logger.warning(f"No questions found for subject_id={subject_id}, "
-                            f"unit_ids={unit_ids}, topic_ids={topic_ids}")
+            current_app.logger.warning(f"No questions found for subject_id={subject_id}, "
+                                     f"unit_ids={unit_ids}, topic_ids={topic_ids}")
             return []
         
         # Log question counts for debugging
-        app.logger.info(f"Found {len(all_questions)} questions matching the criteria")
+        current_app.logger.info(f"Found {len(all_questions)} questions matching the criteria")
         
         # Group by difficulty
         questions_by_difficulty = {
@@ -1176,7 +1173,7 @@ class QuestionExtractor:
         
         # Log difficulty distribution for debugging
         for difficulty, questions in questions_by_difficulty.items():
-            app.logger.info(f"Found {len(questions)} {difficulty} questions")
+            current_app.logger.info(f"Found {len(questions)} {difficulty} questions")
         
         selected_questions = []
         remaining_marks = total_marks
@@ -1194,7 +1191,7 @@ class QuestionExtractor:
             available_questions = questions_by_difficulty.get(difficulty, [])
             
             if not available_questions:
-                app.logger.warning(f"No {difficulty} questions available for selection")
+                current_app.logger.warning(f"No {difficulty} questions available for selection")
                 continue
                 
             current_marks = 0
@@ -1211,11 +1208,11 @@ class QuestionExtractor:
                 if current_marks >= target_marks or remaining_marks <= 0:
                     break
             
-            app.logger.info(f"Selected {current_marks}/{target_marks} marks of {difficulty} questions")
+            current_app.logger.info(f"Selected {current_marks}/{target_marks} marks of {difficulty} questions")
         
         # If we couldn't find enough questions, try to fill the remaining marks with any available questions
         if remaining_marks > 0 and len(selected_questions) < len(all_questions):
-            app.logger.info(f"Trying to fill remaining {remaining_marks} marks with any suitable questions")
+            current_app.logger.info(f"Trying to fill remaining {remaining_marks} marks with any suitable questions")
             
             # Get all questions not yet selected, sorted by marks (ascending)
             remaining_questions = [q for q in all_questions if q not in selected_questions]
@@ -1232,8 +1229,8 @@ class QuestionExtractor:
         # Log final selection
         if selected_questions:
             total_selected_marks = sum(q.marks for q in selected_questions)
-            app.logger.info(f"Selected {len(selected_questions)} questions with {total_selected_marks} total marks")
+            current_app.logger.info(f"Selected {len(selected_questions)} questions with {total_selected_marks} total marks")
             return selected_questions
         
-        app.logger.warning("No questions could be selected with the given criteria")
+        current_app.logger.warning("No questions could be selected with the given criteria")
         return []
